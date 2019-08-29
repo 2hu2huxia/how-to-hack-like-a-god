@@ -38,12 +38,82 @@ elasticsearch:x:134:144::/var/lib/elasticsearch:/bin/false debian-tor:x:135:145:
 虽然系统上定义了许多用户，但只有我们的会话当前在计算机上处于活动状态：
 ```
 www-data@CAREER:$ w
+19:01:10 up 14:51,	1 user,	load average: 0.00, 0.00, 0.00
+USER	TTY	FROM	LOGIN@	IDLE	JCPU  PCPU WHAT
+www-data tty1 Thu19 0.00s 1:47 0.00s /bin/bash
+
 ```
-检查网络配置，可以看到在192.168.1.0/24 网段
+检查网络配置，可以看到我们正位于 192.168.1.0/24 网段：
+```
+www-data@CAREER:$ ifconfig
+eth1		Link encap:Ethernet HWaddr 08:00:27:7d:a6:c0 
+            inet addr:192.168.1.46 Bcast:192.168.1.253 Mask:255.255.255.0
+            inet6 addr: fe80::a00:27ff:fe7d:a6c0/64 
+Scope:Link
+            UP BROADCAST RUNNING MULTICAST
+            MTU:1500 Metric:1
+            RX packets:158729 errors:0 dropped:501 overruns:0 frame:0
+            TX packets:1626 errors:0 dropped:0 overruns:0 carrier:0
+            collisions:0 txqueuelen:1000
+            RX bytes:18292132 (17.4 MiB) TX bytes:225556 (220.2 KiB)
+```
 
 
-最后，没有本地防火墙规则，不会干扰我们后续的数据传输技术：
+最后，服务器没有启用本地防火墙规则，不会对我们后面要用到的数据传输技术造成影响：
+```
+www-data@CAREER:$ iptables -L 
+Chain INPUT (policy ACCEPT)
+target	prot opt source	destination
 
+Chain FORWARD (policy ACCEPT)
+target	prot opt source	destination
 
-提示：请记住，我们可以使用更高级的反向shell（例如，meterpreter）通过模块来自动执行这些检查。
+Chain OUTPUT (policy ACCEPT)
+target	prot opt source destination
+```
 
+> 提示：请记住，我们可以使用更高级的反向shell（例如meterpreter）通过模块来自动执行这些检查。本地工具和命令清单可以在这里获取：[54]
+
+## 第一个倒下的
+有些人可能认为在拿下的第一台服务器上获取管理员权限不是必须的。其实也对，如果我们仅仅需要建立与内部网络区域的隧道的话，拿到普通权限就已经足够了。但是，如果我们想擦除审计日志、欺骗管理员、或者安装新工具，拥有管理员权限显然会更加方便。
+
+有时候，如果运气好的话，用来获取shell的漏洞组件本身就以最高权限在运行，在这种情况下，啥都不用做，可以直接调到下一节了。
+
+一个典型的例子，运行DBA账户的MSSQL服务器存在SQL注入漏洞。所有通过**xp_commandshell**执行的命令，都具备系统最高权限，也就没必要使用接下来介绍的这些技术了。不管怎样，我们还是聚焦在已经拿下的这台Linux服务器吧。
+
+提权和 **setuid** 文件也不是每次都能碰到，但在linux的世界里，他们是一对完美组合。这是每一位黑客或者渗透测试人员攻击 Linux 服务器的第一反应。
+
+在Linux发行版中，所有文件都有一个特殊属性"s"，称为 setuid 位。这允许任意用户通过文件所有者的权限来执行该文件。例如，root账号创建了一个用来删除某些重要文件导额脚本，通过对该文件添加 setuid 位，其他任何用户执行该脚本都会以root用户的权限来执行删除命令。
+
+记住，一旦我们修改了 **setuid** 脚本，它就不再具备该能力。 我们正在寻找的，就是一个使用了未严格过滤命令的 **setuid** 脚本，用以操作环境变量，执行其他二进制文件 -- 有时我们可以控制和提权，从而欺骗它来执行我们自己的代码。
+
+首先，通过下面的命令列出所有 **setuid** 文件：
+```
+CAREER$>find / -type f \( -perm -04000 -o -perm -02000 \) \-exec ls -l {} \;
+r-sr-sr-x 1 oinstall adm 9 Dec 18 14:11 /app/product/def_policy
+[…]
+```
+找到了 **def_policy** 文件。任意用户都可以用 **oinstall**账户的权限来执行该文件。也许该用户不具备root权限，但我们毕竟向前了一步。
+
+对 **def_policy** 文件执行strings命令，查找程序中硬编码的数据：
+```
+www-data@career$ strings /app/product/def_policy
+/lib/ld-linux.so.2
+____gmon_start____
+libc.so.6
+setuid
+exit
+sprint
+strnlen
+malloc
+system
+strsep
+strcmp
+____libc_start_main
+GLIBC_2.0 
+ADMIN_PATH
+%s/install.sh
+```
+看起来，**def_policy**程序只是一个简单的打包程序，用来执行 install.sh 脚本。'%s' 格式字符串意味着 **install.sh** 脚本的路径是从变量中获取的……比如'ADMIN_PATH'？也许吧，但是看起来程序代码中没有任何路径。基本可以确定，是在会话级别的环境变量中定义了该路径值。
+
+有趣的地方在于，每个用户控制了自己的环境变量。我们可以通过这个

