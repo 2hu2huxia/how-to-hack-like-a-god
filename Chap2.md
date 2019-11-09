@@ -13,7 +13,7 @@
 
 SPH的基础设施以广泛而简单的方式看起来可能如下所示：
 
-![SPH基础设施](./Chap2/SPH-Infrastructure.png)
+![SPH基础设施](./Chap2/1.SPH-Infrastructure.png)
 
 
 当然，这个图表过于简单化，因为真正的网络可能要复杂得多。但我们总会找到相同的通用元素:
