@@ -5,4 +5,4 @@ structure:
   summary: SUMMARY.md
 
 redirects:
-  previous/page: new-folder/page.md
+  previous/page: old-folder/page.md

@@ -1,4 +1,4 @@
-﻿# 第二章、入侵
+# 第二章、入侵
 
 > 万物皆有裂缝，这就是光线进入的方式。 -- *伦纳德科恩（Leonard Cohen）*
 
@@ -642,7 +642,7 @@ FrontGun$	python	crowbar.py	-b	rdp	-s 172.31.19.22/32 -u administrator -C pass_f
 
 
 
-> 翻译：zhuzhuxia  2019/8/16
+> 翻译：Ryan  2019/8/16
 
 
 
