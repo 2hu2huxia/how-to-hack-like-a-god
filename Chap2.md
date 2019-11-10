@@ -642,7 +642,7 @@ FrontGun$	python	crowbar.py	-b	rdp	-s 172.31.19.22/32 -u administrator -C pass_f
 
 
 
-> 翻译：zhuzhuxia  2019/8/16
+> 翻译：Ryan  2019/8/16
 
 
 

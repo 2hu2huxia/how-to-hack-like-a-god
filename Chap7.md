@@ -199,3 +199,4 @@ Second method: https://www.cyberis.co.uk/2014/02/obtaining-ntdsdit-using-in-buil
 
 [94]	Legally, of course.
 
+> 翻译：Ryan  2019/8/16
