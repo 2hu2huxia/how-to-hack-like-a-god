@@ -480,5 +480,5 @@ PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrat
 
 提示:一种有趣的持久化技术是生成黄金票据(Kerberos票据，有效期为10年)。查看:http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。
 
-
+> 翻译：Regina9Li  2019/10/27
 

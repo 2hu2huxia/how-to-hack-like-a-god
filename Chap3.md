@@ -552,3 +552,5 @@ _123 | WORKGR |
 **补充说明**
 以上所有对 CrackMapExec 和 Mimikatz 的演示都有个架设前提，就是 DMZ 区的 Windows 服务器可以访问我们的 Front Gun 服务器，两者之间能通过 80 端口进行通信，以发送密码。这个架设并非永远成立，后面我们还会提到
 {% endhint %}
+
+> 翻译：xncoder  2019/8/6
