@@ -522,7 +522,7 @@ FrontGun$ proxychains crackmapexec -u admin_svc -p Hello5me -d WORKGROUP 192.168
 
 执行结果如图所示：
 
- ![&#x5BC6;&#x7801;&#x7206;&#x7834;](.gitbook/assets/3.4-3.png)
+![&#x5BC6;&#x7801;&#x7206;&#x7834;](.gitbook/assets/3.4-3.png)
 
 看起我们拿到的身份信息只对刚才干掉的 Win2003 设备\(192.168.1.70\)有效啊。有时候管理员会根据 Windows系统的版本来设置不同的密码，不过也可能是因为管理员不同。
 
@@ -593,16 +593,16 @@ FrontGun$ proxychains crackmapexec -u administrator -H bc45f08f2aa577a69 -d WORK
 
 | 主机名 | 用户 | 密码 | 域 |
 | :--- | :--- | :--- | :--- |
-| 192.168.1.70 |  admin\_svc  | Hello5me | WORKG  |
-| 192.168.1.80 |  svc\_mnt |  Hello5!981 | WORKG  |
-| 192.168.1.116 |  martin |  Jelly67Fish | WORKG  |
-| 192.168.1.116 |  richard |  Hello5me  | WORKG  |
+| 192.168.1.70 | admin\_svc | Hello5me | WORKG |
+| 192.168.1.80 | svc\_mnt | Hello5!981 | WORKG |
+| 192.168.1.116 | martin | Jelly67Fish | WORKG |
+| 192.168.1.116 | richard | Hello5me | WORKG |
 | 192.168.1.88 | Lionnel\_adm | Kiki\*\*081nb | WORKG |
-|  All DMZ windows machines | Administrator |  M4ster@dmin \_123 | WORKGR |
+| All DMZ windows machines | Administrator | M4ster@dmin \_123 | WORKGR |
 
 {% hint style="info" %}
 **补充说明** 以上所有对 CrackMapExec 和 Mimikatz 的演示都有个架设前提，就是 DMZ 区的 Windows 服务器可以访问我们的 Front Gun 服务器，两者之间能通过 80 端口进行通信，以发送密码。这个架设并非永远成立，后面我们还会提到
 {% endhint %}
 
-> 翻译：xncoder  2019/8/6
+> 翻译：xncoder 2019/8/6
 
