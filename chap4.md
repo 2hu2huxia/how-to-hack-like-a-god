@@ -295,7 +295,7 @@ ForEach ($X in $PC_IP) {
 (Empire : persistence/userland/registry) > run
 ```
 
-这个特定的模块使用 RUN 键来实现持久化（HKCU\Software\Microsoft\Windows\CurrentVersion\Run），这种方法已经被无数恶意软件玩烂了。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的权限不足，暂时还没办法使用一些“风骚”的操作。
+这个特定的模块使用 RUN 键来实现持久化（HKCU\Software\Microsoft\Windows\CurrentVersion\Run），这种方法已经被无数恶意软件玩烂了。这远不是我们所能想出的最隐秘的方法，但鉴于当前在工作站上的权限不足，暂时还没法使用一些“风骚”的方法。
 {% hint style="info" %}
 提示：只需更改模块中的目标选项“set target XXXXX”，就可以在其他所有代理上直接执行此模块。
 {% endhint %}
@@ -395,7 +395,7 @@ c:\apps\screensaver BUILTIN\Administrators:(F)
 Successfully processed 1 files; Failed processing 0 files
 ```
 
-答对了！每个用户都可以完全控制文件夹“ C： Apps  screensaver \”（“ F”权限）。我们可以通过使用自己的脚本替换“ launcher.bat”文件来劫持计划的任务。例如，一个脚本启动Mimikatz并将密码转储到本地文件（c： users  john  appdata  local  temp  pass\_file.txt）。
+答对了！每个用户都可以完全控制文件夹“ C： Apps screensaver \”（“ F”权限）。我们可以通过使用自己的脚本替换“ launcher.bat”文件来劫持计划的任务。例如，一个脚本启动Mimikatz并将密码转储到本地文件（c： users john appdata local temp pass\_file.txt）。
 
 我们一如既往地通过在base64中进行编码来准备代码。该步骤与之前相同，因此我不再赘述：
 
@@ -520,4 +520,5 @@ PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrat
 
 提示:一种有趣的持久化技术是生成黄金票据\(Kerberos票据，有效期为10年\)。查看:[http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。](http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。)
 
-> 翻译：Regina9Li  2019/10/27
+> 翻译：Regina9Li 2019/10/27
+
