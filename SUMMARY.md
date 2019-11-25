@@ -1,7 +1,6 @@
 # Table of contents
 
-* [Hack Like a Pornstar](README.md)
-* [目录](summary.md)
+* [黑客探秘](README.md)
 * [第一章、安全第一](chap1.md)
 * [第二章、入侵](chap2.md)
 * [第三章、防火墙后面的世界](chap3.md)
