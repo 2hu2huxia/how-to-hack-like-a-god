@@ -242,7 +242,7 @@ End Sub
 
 这就是臭名昭着的PowerShell Empire 派上用场的地方。它是一个框架，提供一个能够处理多个受感染用户的监听器，但也为shell提供了一些有趣的命令，如获取明文密码，数据透视，权限提升等。
 
-按照此博客文章\[[http://www.powershellempire.com/?page\_id=110\](http://www.powershellempire.com/?page_id=110\)\] 下载并安装Empire PS（ 基本上复制Git存储库并启动 install. sh \)
+按照此博客文章\[[http://www.powershellempire.com/?page\_id=110\](http://www.powershellempire.com/?page_id=110%29]%20下载并安装Empire%20PS（%20基本上复制Git存储库并启动%20install.%20sh%20\)
 
 在欢迎屏幕上，转到监听器菜单（命令监听器）并使用info命令列出默认位置:
 

