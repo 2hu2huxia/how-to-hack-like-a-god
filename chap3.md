@@ -21,7 +21,6 @@ www-data@CAREER$ unset HISTFILE
 查看系统信息
 
 ```text
-
 www-data@CAREER$ uname -a
 Linux CAREER 4.4.0-31-generic #50-Ubuntu SMP Wed Jul    13    00:06:14    UTC    2016    i686    i686    i686
 GNY/Linux
@@ -50,7 +49,6 @@ www-data tty1 Thu19 0.00s 1:47 0.00s /bin/bash
 检查网络配置，可以看到我们处在 192.168.1.0/24 网段：
 
 ```text
-
 www-data@CAREER:$ ifconfig
 eth1        Link encap:Ethernet HWaddr 08:00:27:7d:a6:c0 
             inet addr:192.168.1.46 Bcast:192.168.1.253 Mask:255.255.255.0
@@ -67,7 +65,6 @@ Scope:Link
 最后，服务器没有启用本地防火墙规则，不会对我们后面要用到的数据传输技术造成影响：
 
 ```text
-
 www-data@CAREER:$ iptables -L 
 Chain INPUT (policy ACCEPT)
 target    prot opt source    destination
@@ -98,7 +95,6 @@ target    prot opt source destination
 首先，通过下面的命令列出所有 **setuid** 文件：
 
 ```text
-
 CAREER$>find / -type f \( -perm -04000 -o -perm -02000 \) \-exec ls -l {} \;
 r-sr-sr-x 1 oinstall adm 9 Dec 18 14:11 /app/product/def_policy
 […]
@@ -108,8 +104,7 @@ r-sr-sr-x 1 oinstall adm 9 Dec 18 14:11 /app/product/def_policy
 
 对 **def\_policy** 文件执行 strings 命令，查找程序中硬编码的数据：
 
-```shell
-
+```text
 www-data@career$ strings /app/product/def_policy
 /lib/ld-linux.so.2
 ____gmon_start____
