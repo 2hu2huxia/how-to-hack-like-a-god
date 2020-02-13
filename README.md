@@ -36,11 +36,6 @@
 
 | 章节 | 翻译 | 校对 |
 | :--- | :--- | :--- |
-| 第一章、安全第一 | xncoder | Regina9Li |
-| 第二章、入侵 | Ryan | Regina9Li |
-| 第三章、防火墙后面的世界 | xncoder | Ryan |
-| 第四章、内网漫游 | Regina9Li | xncoder |
-| 第五章、数据狩猎 | Regina9Li | Ryan |
-| 第六章、难以想象的黑客攻击 | Ryan | xncoder |
-| 第七章、结束语 | Ryan | xncoder |
+| X| X | X |
+
 
