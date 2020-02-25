@@ -3,7 +3,6 @@
 ---
 
 
-
 ## 版权声明
 
 保留所有权利。不得复制本出版物的任何部分，以任何形式或方式分发或传送，包括未经出版者事先书面许可的影印、录音或其他电子或机械方法，但在批评性评论中包含的简短引用和版权法允许的某些其他非商业用途除外。 （译注：原作者为Sparc Flow，翻译作品不会用于商业用途）
@@ -42,6 +41,10 @@
 
 | 章节 | 翻译 | 校对 |
 | :--- | :--- | :--- |
-| X| X | X |
-
-
+| 前言| Ryan | xncoder、Regina9Li |
+| 第一章| Ryan | xncoder、Regina9Li |
+| 第二章| Ryan | xncoder、Regina9Li |
+| 第三章| Ryan | xncoder、Regina9Li |
+| 第四章| Ryan | xncoder、Regina9Li |
+| 第五章| Ryan | xncoder、Regina9Li |
+| 结尾| Ryan | xncoder、Regina9Li |
